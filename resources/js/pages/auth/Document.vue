@@ -1,0 +1,183 @@
+<script setup lang="ts">
+import InputError from '@/components/InputError.vue';
+import TextLink from '@/components/TextLink.vue';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import AuthBase from '@/layouts/AuthLayout.vue';
+import { Head, useForm } from '@inertiajs/vue3';
+import { LoaderCircle, Plus, X } from 'lucide-vue-next';
+import { ref } from 'vue';
+
+interface DocumentItem {
+  id: number;
+  file: File | null;
+  type: string;
+  error: string;
+}
+
+const initialDocuments = () => [
+  { id: 1, file: null, type: 'Business Permit', error: '' },
+  { id: 2, file: null, type: 'Mayor\'s Permit', error: '' },
+  { id: 3, file: null, type: 'BIR Registration', error: '' }
+];
+
+const documents = ref<DocumentItem[]>(initialDocuments());
+const nextId = ref(4);
+
+const additionalDocumentTypes = [
+  'Sanitary Permit',
+  'Fire Safety Certificate',
+  'DTI/SEC Registration',
+  'Lease Contract',
+  'Other Business Documents'
+];
+
+const form = useForm({
+  documents: [] as File[],
+  document_types: [] as string[],
+});
+
+const addDocumentField = () => {
+  if (documents.value.length < 5) {
+    const availableTypes = additionalDocumentTypes.filter(
+      type => !documents.value.some(doc => doc.type === type)
+    );
+    
+    if (availableTypes.length > 0) {
+      documents.value.push({
+        id: nextId.value++,
+        file: null,
+        type: availableTypes[0],
+        error: ''
+      });
+    }
+  }
+};
+
+const removeDocumentField = (id: number) => {
+  if (documents.value.length > 3) {
+    documents.value = documents.value.filter(doc => doc.id !== id);
+  }
+};
+
+const handleFileChange = (e: Event, id: number) => {
+  const target = e.target as HTMLInputElement;
+  const document = documents.value.find(doc => doc.id === id);
+  
+  if (document && target.files && target.files[0]) {
+    const file = target.files[0];
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    
+    if (!validTypes.includes(file.type)) {
+      document.error = 'Please upload a PDF or image file (JPEG, PNG, JPG)';
+      document.file = null;
+      return;
+    }
+    
+    if (file.size > 5 * 1024 * 1024) {
+      document.error = 'File size must be less than 5MB';
+      document.file = null;
+      return;
+    }
+    
+    document.file = file;
+    document.error = '';
+  }
+};
+
+const submit = () => {
+  // Reset form before filling
+  form.documents = [];
+  form.document_types = [];
+
+  documents.value.forEach(doc => {
+    if (doc.file) {
+      form.documents.push(doc.file);
+      form.document_types.push(doc.type);
+    }
+  });
+
+  form.post(route('register.documents.store'), {
+    forceFormData: true, // <-- ensures multipart/form-data is sent
+    onFinish: () => {
+      documents.value = initialDocuments();
+    },
+  });
+};
+
+const hasAtLeastOneDocument = () => {
+  return documents.value.some(doc => doc.file !== null);
+};
+</script>
+<template>
+  <AuthBase title="Upload Required Documents" description="Please upload your business documents to complete registration">
+    <Head title="Upload Documents" />
+
+    <form @submit.prevent="submit" class="flex flex-col gap-6">
+      <div class="grid gap-6">
+        <div v-for="document in documents" :key="document.id" class="grid gap-2 relative">
+          <div class="flex items-center justify-between">
+            <Label :for="`document-${document.id}`">{{ document.type }}</Label>
+            <Button 
+              v-if="documents.length > 3" 
+              @click="removeDocumentField(document.id)" 
+              type="button" 
+              variant="ghost" 
+              size="icon" 
+              class="h-6 w-6"
+            >
+              <X class="h-4 w-4" />
+            </Button>
+          </div>
+          
+          <Input 
+            :id="`document-${document.id}`"
+            :name="`document-${document.id}`"
+            type="file" 
+            accept=".pdf,.jpg,.jpeg,.png" 
+            @change="handleFileChange($event, document.id)"
+            :class="document.file ? 'border-green-500' : ''"
+          />
+          
+          <InputError :message="document.error" />
+          
+          <div v-if="document.file" class="text-sm text-green-600 flex items-center gap-1">
+            <span class="font-medium">Selected:</span> 
+            {{ document.file.name }} 
+            <span class="text-xs text-gray-500">
+              ({{ (document.file.size / 1024 / 1024).toFixed(2) }} MB)
+            </span>
+          </div>
+        </div>
+
+        <Button 
+          v-if="documents.length < 5" 
+          @click="addDocumentField" 
+          type="button" 
+          variant="outline" 
+          class="flex items-center gap-2"
+        >
+          <Plus class="h-4 w-4" />
+          Add Another Document
+        </Button>
+
+        <Button 
+          type="submit" 
+          :disabled="form.processing || !hasAtLeastOneDocument()"
+          class="mt-4"
+        >
+          <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin mr-2" />
+          {{ hasAtLeastOneDocument() ? 'Upload Documents' : 'Please upload at least one document' }}
+        </Button>
+      </div>
+
+      <div class="text-center text-sm text-muted-foreground">
+        You can upload these later from your account settings
+        <TextLink :href="route('home')" class="underline underline-offset-4">
+          Skip for now
+        </TextLink>
+      </div>
+    </form>
+  </AuthBase>
+</template>
