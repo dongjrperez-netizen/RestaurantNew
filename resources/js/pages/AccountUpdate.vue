@@ -2,7 +2,7 @@
 import InputError from '@/components/InputError.vue';
 import { Button } from '@/components/ui/button';
 import { BreadcrumbItem } from '@/types';
-import { useForm } from '@inertiajs/vue3';
+import { useForm, Head } from '@inertiajs/vue3';
 import { onMounted, ref } from 'vue';
 import AddLayoutAccountUpdate from '@/layouts/AddLayoutAccountUpdate.vue';
 
@@ -92,6 +92,8 @@ const form = useForm({
     name: '',
     email: '',
     password: '',
+    documents: [] as File[],
+    document_types: [] as string[],
 });
 
 onMounted(async () => {
@@ -119,27 +121,39 @@ onMounted(async () => {
 });
 
 function submitForm() {
-        // Prepare document data
-        const formData = new FormData();
-        formData.append('name', form.name);
-        formData.append('email', form.email);
-        formData.append('password', form.password);
+        // Add document files to the form
+        const documentFiles: File[] = [];
+        const documentTypes: string[] = [];
+        
         documents.value.forEach(doc => {
             if (doc.file) {
-                formData.append('documents[]', doc.file);
+                documentFiles.push(doc.file);
                 if (doc.type === 'Optional') {
-                    formData.append('document_types[]', doc.optionalName || 'Optional');
+                    documentTypes.push(doc.optionalName || 'Optional');
                 } else {
-                    formData.append('document_types[]', doc.type);
+                    documentTypes.push(doc.type);
                 }
             }
         });
-            form.post(route('account.update'), {
-                forceFormData: true,
-                onFinish: () => {
-                    documents.value = initialDocuments();
-                }
-            });
+
+        // Use Inertia form with documents
+        form.documents = documentFiles;
+        form.document_types = documentTypes;
+
+        form.post(route('account.update'), {
+            forceFormData: true,
+            onFinish: () => {
+                documents.value = initialDocuments();
+                form.documents = [];
+                form.document_types = [];
+            },
+            onError: (errors) => {
+                console.error('Form submission errors:', errors);
+            },
+            onSuccess: () => {
+                console.log('Account updated successfully');
+            }
+        });
 }
 </script>
 <template>

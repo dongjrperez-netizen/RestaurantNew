@@ -25,7 +25,7 @@ class SubscriptionpackageController extends Controller
     public function index(): Response
     {
            $plans = Subscriptionpackage::all();
-            $subscriptions = UserSubscription::where('restaurant_id', auth()->user()->restaurant_id)->get();
+            $subscriptions = UserSubscription::where('user_id', auth()->user()->id)->get();
 
             return Inertia::render('Subscriptions/Subscription', [
                 'plans' => $plans,
@@ -38,13 +38,13 @@ class SubscriptionpackageController extends Controller
     public function create(Request $request)
     {
         $request->validate(['plan_id' => 'required|exists:subscriptionpackages,plan_id']);
-        $plan = subscriptionpackage_demo::where('plan_id', $request->plan_id)->firstOrFail();
+        $plan = subscriptionpackage::where('plan_id', $request->plan_id)->firstOrFail();
         $request->validate(['plan_id' => 'required|exists:subscriptionpackages,plan_id']);
         $plan = Subscriptionpackage::where('plan_id', $request->plan_id)->firstOrFail();
 
-        if (auth()->user()->hasActiveSubscription()) {
-            return redirect()->back()->withErrors(['error' => 'You already have an active subscription.']);
-        }
+        // if (auth()->user()->hasActiveSubscription()) {
+        //     return redirect()->back()->withErrors(['error' => 'You already have an active subscription.']);
+        // }
 
         try {
             $provider = new PayPalClient;
@@ -132,7 +132,8 @@ class SubscriptionpackageController extends Controller
                 'remaining_days' => $plan->plan_duration,
                 'subscription_status' => 'active',
                 'plan_id' => $plan->plan_id,
-                'restaurant_id' => $restaurantId,
+                'user_id' => $user->id,
+                'is_trial' => false,
             ]);
 
             $paymentInfo = Paymentinfo::create([
@@ -147,7 +148,6 @@ class SubscriptionpackageController extends Controller
                 'payment_id' => $paymentInfo->payment_id,
                 'restaurant_id' =>  $restaurantId,
             ]);
-            $user->role_id = 2;
             $user->save();
 
             DB::commit();
@@ -160,5 +160,59 @@ class SubscriptionpackageController extends Controller
     public function cancel()
     {
         return redirect()->route('subscriptions.index')->withErrors('Payment was cancelled.');
+    }
+
+    public function createFreeTrial(Request $request)
+    {
+        $request->validate(['plan_id' => 'required|exists:subscriptionpackages,plan_id']);
+        
+        $user = auth()->user();
+        $restaurant = Restaurant_Data::where('user_id', $user->id)->first();
+
+        if (!$restaurant) {
+            return redirect()->route('subscriptions.index')
+                ->withErrors('No restaurant data found for this user.');
+        }
+
+        $plan = Subscriptionpackage::where('plan_id', $request->plan_id)->firstOrFail();
+        
+        // Check if user already has an active subscription
+        $existingSubscription = Usersubscription::where('user_id', $user->id)
+            ->where('subscription_status', 'active')
+            ->first();
+            
+        if ($existingSubscription) {
+            return redirect()->route('subscriptions.index')
+                ->withErrors('You already have an active subscription.');
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $startDate = now();
+            $endDate = now()->addSeconds(15);
+
+            $userSubscription = Usersubscription::create([
+                'subscription_startDate' => $startDate,
+                'subscription_endDate' => $endDate,
+                'remaining_days' => 20, // 10 seconds instead of plan duration
+                'subscription_status' => 'active',
+                'plan_id' => $plan->plan_id,
+                'user_id' => $user->id,
+            ]);
+
+
+
+            $user->save();
+
+            DB::commit();
+
+            return redirect()->route('dashboard')->with('success', 'Free trial activated successfully!');
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Free Trial Creation Error: ' . $e->getMessage());
+            return redirect()->back()->withErrors(['error' => 'Free trial activation failed. Try again later.']);
+        }
     }
 }

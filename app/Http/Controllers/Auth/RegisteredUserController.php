@@ -43,29 +43,33 @@ public function store(Request $request): RedirectResponse
             'phonenumber' => 'required|string|max:20|unique:users,phonenumber',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
 
-            //restaurant data
             'restaurant_name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
-            'postal_code' => 'required|string|max:20', // Changed to string to match procedure
+            'postal_code' => 'required|string|max:20',
             'contact_number' => 'required|string|max:20|unique:restaurant_data,contact_number',
         ]);
 
-        // Call stored procedure with all 14 parameters
-        DB::statement('CALL RegisterUserWithRestaurant(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-            $validated['last_name'],
-            $validated['first_name'],
-            $validated['middle_name'],
-            $validated['date_of_birth'],
-            $validated['gender'],
-            $validated['email'],
-            $validated['phonenumber'],
-            Hash::make($validated['password']),
-            //Restaurant Data (6 parameters)
-            $validated['restaurant_name'],
-            $validated['address'],
-            $validated['postal_code'],
-            $validated['contact_number']
-        ]);
+        DB::transaction(function () use ($validated) {
+
+            $user = User::create([
+                'last_name' => $validated['last_name'],
+                'first_name' => $validated['first_name'],
+                'middle_name' => $validated['middle_name'],
+                'date_of_birth' => $validated['date_of_birth'],
+                'gender' => $validated['gender'],
+                'email' => $validated['email'],
+                'phonenumber' => $validated['phonenumber'],
+                'password' => Hash::make($validated['password']),
+            ]);
+
+            Restaurant_Data::create([
+                'user_id' => $user->id,
+                'restaurant_name' => $validated['restaurant_name'],
+                'address' => $validated['address'],
+                'postal_code' => $validated['postal_code'],
+                'contact_number' => $validated['contact_number'],
+            ]);
+        });
 
         $user = User::where('email', $validated['email'])->first();
         event(new Registered($user));
@@ -85,10 +89,9 @@ public function store(Request $request): RedirectResponse
     public function store_doc(Request $request): RedirectResponse
     {
         try {
-            // Validate that documents array exists and has at least one file
             $validated = $request->validate([
                 'documents' => 'required|array|min:1',
-                'documents.*' => 'file|mimes:jpg,jpeg,png,pdf|max:5120', // 5MB max
+                'documents.*' => 'file|mimes:jpg,jpeg,png,pdf|max:5120', 
                 'document_types' => 'required|array|min:1',
                 'document_types.*' => 'string|max:255',
             ]);
@@ -103,7 +106,6 @@ public function store(Request $request): RedirectResponse
                 ]);
             }
 
-            // Process each uploaded document
             $uploadedCount = 0;
             $documents = $request->file('documents');
             $documentTypes = $request->input('document_types', []);
@@ -112,7 +114,6 @@ public function store(Request $request): RedirectResponse
                 if ($file && $file->isValid()) {
                     $path = $file->store('documents', 'public');
                     
-                    // Get the document type, fallback to original extension if not provided
                     $docType = isset($documentTypes[$index]) 
                         ? $documentTypes[$index] 
                         : $file->getClientOriginalExtension();

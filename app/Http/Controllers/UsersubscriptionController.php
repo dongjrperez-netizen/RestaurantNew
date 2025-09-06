@@ -12,23 +12,5 @@ use Inertia\Response;
 
 class UsersubscriptionController extends Controller
 {
-   public function payment(){
-        $provider = new PayPalClient;
-        $provider->setApiCredentials(config('paypal'));
-        $provider->setAccessToken($provider->getAccessToken());
-
-        $response = $provider->createOrder([
-            "intent" => "CAPTURE",
-            "purchase_units"=>[
-                [
-                    "amount"=>[
-                        "currency_code" => "PHP",
-                        "value"=> 100.00,
-
-                    ]
-                    
-                ]
-            ]
-        ]);
-   }
+  //
 }

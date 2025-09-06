@@ -20,4 +20,10 @@ class Restaurant_Data extends Model
     {
         return $this->belongsTo(User::class, 'user_id', 'id');
     }
+
+    // Define the relationship with Documents
+    public function documents()
+    {
+        return $this->hasMany(Document::class, 'restaurant_id');
+    }
 }

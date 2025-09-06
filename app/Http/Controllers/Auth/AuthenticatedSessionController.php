@@ -52,20 +52,21 @@ class AuthenticatedSessionController extends Controller
         }
     }
 
+    // Authenticate the user first
+    $request->authenticate();
+    $request->session()->regenerate();
 
+    // Check if user has an active subscription
+    $user = auth()->user();
+    $subscription = $user->subscription()->orderByDesc('subscription_endDate')->first(); // or ->latest('created_at')->first();
 
-    // Redirect based on role_id
-    if ($user->role_id == 1) {
-        $request->authenticate();
-        $request->session()->regenerate();
-        return redirect()->intended(route('subscriptions.index', absolute: false));
-    } elseif ($user->role_id == 2) {
-        $request->authenticate();
-        $request->session()->regenerate();
-
+    if ($subscription && strtolower($subscription->subscription_status) === 'active') {
         return redirect()->intended(route('dashboard', absolute: false));
+    } elseif ($subscription && strtolower($subscription->subscription_status) === 'archive') {
+        return redirect()->intended(route('subscriptions.renew', absolute: false));
+    } else {
+        return redirect()->intended(route('subscriptions.index', absolute: false));
     }
-
 }
 
     /**

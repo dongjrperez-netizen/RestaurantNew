@@ -18,7 +18,9 @@ class User extends Authenticatable implements MustVerifyEmailContract
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'first_name',
+        'last_name',
+        'middle_name',
         'date_of_birth',
         'gender',
         'email',
@@ -36,7 +38,13 @@ class User extends Authenticatable implements MustVerifyEmailContract
     public function restaurantData()
     {
         // A user has one restaurant
-        return $this->hasOne(RestaurantData::class, 'user_id', 'id');
+        return $this->hasOne(Restaurant_Data::class, 'user_id', 'id');
+    }
+
+    // Define the relationship with UserSubscription
+    public function subscription()
+    {
+        return $this->hasOne(UserSubscription::class, 'user_id', 'id');
     }
     /**
      * The attributes that should be hidden for serialization.

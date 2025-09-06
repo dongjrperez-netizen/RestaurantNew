@@ -20,7 +20,13 @@ class UserSubscription extends Model
         'remaining_days',
         'subscription_status',
         'plan_id',
-        'restaurant_id',
+        'user_id',
+        'is_trial',
     ];
 
+    // Define the relationship with User
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id', 'id');
+    }
 }

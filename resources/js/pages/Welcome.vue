@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
-
-const page = usePage();
-const showLoginModal = ref(false);
+import { Head, Link } from '@inertiajs/vue3';
 </script>
 
 <template>
@@ -16,7 +12,6 @@ const showLoginModal = ref(false);
 
   <!-- HERO BACKGROUND SECTION -->
   <div class="relative flex min-h-screen flex-col bg-black text-white font-sans">
-    
     <!-- Overlay with gradient -->
     <div class="absolute inset-0 bg-gradient-to-b from-black/80 to-black/90"></div>
 
@@ -39,10 +34,10 @@ const showLoginModal = ref(false);
           </Link>
 
           <template v-else>
-            <button @click="showLoginModal = true"
-                    class="px-4 py-2 rounded-lg hover:underline text-white transition">
+            <Link :href="route('login')"
+                  class="px-4 py-2 rounded-lg text-white hover:underline transition">
               Log in
-            </button>
+            </Link>
             <Link :href="route('register')"
                   class="px-4 py-2 border border-blue-500 text-blue-500 rounded-lg hover:bg-blue-500 hover:text-white transition">
               Register
@@ -71,30 +66,6 @@ const showLoginModal = ref(false);
           </a>
         </div>
       </section>
-    </div>
-  </div>
-
-  <!-- LOGIN MODAL -->
-  <div v-if="showLoginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-    <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-lg w-[90%] max-w-md p-6">
-      <h2 class="text-2xl font-bold mb-4 text-center text-blue-500">Login</h2>
-
-      <div class="flex flex-col gap-4">
-        <Link :href="route('login', { role: 'owner' })"
-              class="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold text-center shadow hover:opacity-90 transition">
-          Login as Owner
-        </Link>
-
-        <Link :href="route('admin.login', { role: 'admin' })"
-              class="w-full px-4 py-3 rounded-lg bg-gradient-to-r from-gray-700 to-black text-white font-semibold text-center shadow hover:opacity-90 transition">
-          Login as Administrator
-        </Link>
-      </div>
-
-      <button @click="showLoginModal = false"
-              class="mt-6 w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition">
-        Cancel
-      </button>
     </div>
   </div>
 
