@@ -1,9 +1,28 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
-import { Head, useForm, usePage } from '@inertiajs/vue3';
+import { Head, useForm } from '@inertiajs/vue3';
 import { ref, reactive, onMounted } from "vue";
 import { SquareX, SquarePlus } from 'lucide-vue-next';
+
+// UI Components (same as PurchaseOrder/Create)
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 interface Supplier {
   supplier_id: number;
@@ -51,7 +70,7 @@ interface StockInForm {
   restaurant_id: number;
   reference_no: string;
   items: FormItem[];
-  [key: string]: any; 
+  [key: string]: any;
 }
 
 const form = useForm<StockInForm>({
@@ -74,7 +93,7 @@ onMounted(() => {
 });
 
 function addItem() {
-  (form.items ?? []).push({
+  form.items.push({
     ingredient_id: "",
     item_type: "Bulk",
     unit: "kg",
@@ -84,10 +103,11 @@ function addItem() {
 }
 
 function removeItem(index: number) {
-  if ((form.items ?? []).length > 1) {
-    (form.items ?? []).splice(index, 1);
+  if (form.items.length > 1) {
+    form.items.splice(index, 1);
   }
 }
+
 function setUnitForItem(item: FormItem) {
   const ing = ingredientsList.value.find(i => i.ingredient_id === item.ingredient_id);
   if (ing) {
@@ -116,10 +136,10 @@ async function saveNewIngredient() {
     }
 
     ingredientsList.value.push(result);
-    if ((form.items ?? []).length > 0) {
-      (form.items ?? [])[form.items.length - 1].ingredient_id = result.ingredient_id;
-    }
+    form.items[form.items.length - 1].ingredient_id = result.ingredient_id;
     showModal.value = false;
+
+    // reset modal
     newIngredient.ingredient_name = "";
     newIngredient.base_unit = "kg";
     newIngredient.reorder_level = 0;
@@ -129,190 +149,182 @@ async function saveNewIngredient() {
   }
   modalProcessing.value = false;
 }
+
 function resetAndCancel() {
-  form.items.forEach(item => {
-    item.quantity = 0;
-    item.unit_price = 0;
-  });
-  // Use Inertia's visit method for navigation
-
-
   form.visit(route('inventory.index'));
 }
 
 const itemTotal = (item: FormItem) => (item.quantity * item.unit_price).toFixed(2);
-const orderTotal = () => (form.items ?? []).reduce((total, item) => total + (item.quantity * item.unit_price), 0).toFixed(2);
+const orderTotal = () => form.items.reduce((total, item) => total + (item.quantity * item.unit_price), 0).toFixed(2);
 </script>
 
 <template>
   <Head title="Stock In" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="max-w-5xl mx-auto py-10 px-4 sm:px-8 lg:px-12">
-  <div class="bg-[#ffffff] rounded-3xl shadow-xl p-8 border border-gray-200">
-        
+    <div class="p-6">
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Stock In</h1>
+          <p class="text-gray-600 mt-1">Record new stock for your restaurant</p>
+        </div>
+      </div>
 
-        <!-- Stock-In Form -->
-  <form @submit.prevent="form.post(route('stock-in.store'))" class="space-y-8">
+      <!-- Main Form -->
+      <Card class="max-w-5xl mx-auto">
+        <CardHeader>
+          <CardTitle>Stock-In Information</CardTitle>
+          <CardDescription>Fill in the stock-in details</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form @submit.prevent="form.post(route('stock-in.store'))" class="space-y-6">
+            
+            <!-- Supplier & Reference -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label for="supplier">Supplier *</Label>
+                <Select v-model="form.supplier_id">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem v-for="s in suppliers" :key="s.supplier_id" :value="s.supplier_id">
+                      {{ s.supplier_name }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label for="reference_no">Reference Number</Label>
+                <Input v-model="form.reference_no" type="text" placeholder="Optional reference" />
+              </div>
+            </div>
 
-          <!-- Supplier & Reference -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Items Section -->
             <div>
-              <label class="block text-base font-semibold text-black mb-2">Supplier</label>
-              <select v-model="form.supplier_id" required
-                class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white">
-                <option value="" disabled>Select Supplier</option>
-                <option v-for="s in suppliers" :key="s.supplier_id" :value="s.supplier_id">
-                  {{ s.supplier_name }}
-                </option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-base font-semibold text-black mb-2">Reference Number</label>
-              <input v-model="form.reference_no" type="text"
-                class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white"
-                placeholder="Optional reference" />
-            </div>
-          </div>
+              <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-900">Items</h2>
+                <div class="flex gap-2">
+                  <Button type="button" variant="success" @click="showModal = true">
+                    <SquarePlus class="h-4 w-4 mr-2" /> Add Ingredient
+                  </Button>
+                  <Button type="button" @click="addItem">
+                    <SquarePlus class="h-4 w-4 mr-2" /> Add Item
+                  </Button>
+                </div>
+              </div>
 
-          <!-- Items -->
-          <div>
-            <div class="flex justify-between items-center mb-6">
-              <h2 class="text-xl font-bold text-black">Items</h2>
-              <div class="flex gap-3">
-                <button type="button" @click="showModal = true"
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white bg-green-500 hover:bg-green-600 shadow transition-all">
-                  <SquarePlus class="h-5 w-5" /> Add Ingredient
-                </button>
-                <button type="button" @click="addItem"
-                  class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-white bg-blue-500 hover:bg-blue-600 shadow transition-all">
-                  <SquarePlus class="h-5 w-5" /> Add Item
-                </button>
+              <div v-for="(item, index) in form.items" :key="index" class="p-4 border rounded-lg space-y-4 mb-4">
+                <!-- Ingredient -->
+                <div>
+                  <Label>Ingredient</Label>
+                  <Select v-model="item.ingredient_id" @update:modelValue="setUnitForItem(item)">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Ingredient" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="i in ingredientsList" :key="i.ingredient_id" :value="i.ingredient_id">
+                        {{ i.ingredient_name }} ({{ i.base_unit }})
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <!-- Type, Unit, Qty, Price -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <Label>Type</Label>
+                    <Select v-model="item.item_type">
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Bulk">Bulk</SelectItem>
+                        <SelectItem value="Box">Box</SelectItem>
+                        <SelectItem value="Case">Case</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Unit</Label>
+                    <Input v-model="item.unit" placeholder="kg, pcs" />
+                  </div>
+                  <div>
+                    <Label>Quantity</Label>
+                    <Input v-model.number="item.quantity" type="number" min="0.01" step="0.01" />
+                  </div>
+                  <div>
+                    <Label>Unit Price</Label>
+                    <Input v-model.number="item.unit_price" type="number" min="0" step="0.01" />
+                  </div>
+                </div>
+
+                <!-- Item Total & Remove -->
+                <div class="flex justify-between items-center">
+                  <p class="font-semibold">Item Total: ${{ itemTotal(item) }}</p>
+                  <Button type="button" variant="destructive" size="sm" @click="removeItem(index)" :disabled="form.items.length <= 1">
+                    <SquareX class="h-4 w-4 mr-1" /> Remove
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div v-for="(item, index) in form.items" :key="index"
-              class="grid grid-cols-1 md:grid-cols-12 gap-6 items-start p-6 border border-blue-100 rounded-2xl mb-6 bg-white shadow-sm hover:shadow-lg transition-all">
-              
-              <!-- Ingredient -->
-              <div class="md:col-span-3">
-                <label class="block text-sm font-semibold text-black mb-2">Ingredient</label>
-                <select v-model="item.ingredient_id" @change="setUnitForItem(item)" required
-                    class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white">
-                    <option value="" disabled>Select Ingredient</option>
-                    <option v-for="i in ingredientsList" :key="i.ingredient_id" :value="i.ingredient_id">
-                      {{ i.ingredient_name }} ({{ i.base_unit }})
-                    </option>
-                  </select>
-              </div>
-
-              <!-- Type -->
-              <div class="md:col-span-2">
-                <label class="block text-sm font-semibold text-black mb-2">Type</label>
-                <select v-model="item.item_type" required
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white">
-                  <option value="Bulk">Bulk</option>
-                  <option value="Box">Box</option>
-                  <option value="Case">Case</option>
-                </select>
-              </div>
-
-              <!-- Unit -->
-              <div class="md:col-span-2">
-                <label class="block text-sm font-semibold text-black mb-2">Unit</label>
-                <input v-model="item.unit" type="text" placeholder="kg, pcs"
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white" required>
-              </div>
-
-              <!-- Quantity -->
-              <div class="md:col-span-2">
-                <label class="block text-sm font-semibold text-black mb-2">Quantity</label>
-                <input v-model.number="item.quantity" type="number" min="0.01" step="0.01"
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white" required>
-              </div>
-
-              <!-- Unit Price -->
-              <div class="md:col-span-2">
-                <label class="block text-sm font-semibold text-black mb-2">Unit Price</label>
-                <input v-model.number="item.unit_price" type="number" min="0" step="0.01"
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white" required>
-              </div>
-
-              <!-- Remove -->
-              <div class="md:col-span-1 flex justify-end">
-                <button type="button" @click="removeItem(index)" :disabled="(form.items ?? []).length <= 1"
-                  class="mt-8 px-2 py-2 bg-transparent text-black rounded-full hover:bg-red-100 flex items-center transition-all disabled:opacity-50 border-none shadow-none">
-                  <SquareX class="h-6 w-6" />
-                </button>
-              </div>
-
-              <!-- Item Total -->
-              <div class="md:col-span-12 pt-4 border-t border-blue-100">
-                <p class="text-base font-semibold text-right text-black">
-                  Item Total: <span class="text-black">${{ itemTotal(item) }}</span>
-                </p>
-              </div>
+            <!-- Order Total -->
+            <div class="text-right font-bold text-xl">
+              Order Total: ${{ orderTotal() }}
             </div>
-          </div>
 
-          <!-- Order Total -->
-          <div class="flex justify-end pt-6 border-t border-blue-200">
-            <div class="text-2xl font-extrabold text-black">
-              Order Total: <span class="text-black">${{ orderTotal() }}</span>
+            <!-- Actions -->
+            <div class="flex justify-end gap-4">
+              <Button type="button" variant="outline" @click="resetAndCancel">Cancel</Button>
+              <Button type="submit" :disabled="form.processing">
+                {{ form.processing ? 'Processing...' : 'Save Stock-In' }}
+              </Button>
             </div>
-          </div>
+          </form>
+        </CardContent>
+      </Card>
 
-          <!-- Actions -->
-          <div class="flex justify-end gap-6 mt-8">
-            <button type="button" @click="resetAndCancel"
-              class="px-6 py-3 border border-blue-200 rounded-xl shadow bg-white hover:bg-blue-50 text-blue-700 font-semibold transition-all">
-              Cancel
-            </button>
-            <button type="submit" :disabled="form.processing"
-              class="px-6 py-3 rounded-xl text-white bg-blue-600 hover:bg-blue-700 font-bold shadow transition-all disabled:opacity-50">
-              {{ form.processing ? 'Processing...' : 'Save Stock-In' }}
-            </button>
-          </div>
-  </form>
-
-
-        <!-- Ingredient Modal -->
-        <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center">
-          <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showModal = false"></div>
-          <div class="relative bg-white rounded-3xl shadow-2xl w-[90%] max-w-lg p-8 z-10 border border-blue-200">
-            <h2 class="text-2xl font-extrabold mb-8 text-center text-black">Add New Ingredient</h2>
-            <form @submit.prevent="saveNewIngredient" class="space-y-6">
+      <!-- Modal -->
+      <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showModal = false"></div>
+        <Card class="relative w-[90%] max-w-lg z-10">
+          <CardHeader>
+            <CardTitle>Add New Ingredient</CardTitle>
+            <CardDescription>Fill in the ingredient details</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form @submit.prevent="saveNewIngredient" class="space-y-4">
               <div>
-                <label class="block text-base font-semibold text-black mb-2">Ingredient Name</label>
-                <input v-model="newIngredient.ingredient_name" type="text" required
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white" placeholder="e.g., Organic Tomatoes" />
+                <Label>Ingredient Name</Label>
+                <Input v-model="newIngredient.ingredient_name" type="text" required />
               </div>
               <div>
-                <label class="block text-base font-semibold text-black mb-2">Base Unit</label>
-                <select v-model="newIngredient.base_unit"
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white">
-                  <option value="kg">kg</option>
-                  <option value="pcs">pcs</option>
-                  <option value="box">box</option>
-                </select>
+                <Label>Base Unit</Label>
+                <Select v-model="newIngredient.base_unit">
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="kg">kg</SelectItem>
+                    <SelectItem value="pcs">pcs</SelectItem>
+                    <SelectItem value="box">box</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <label class="block text-base font-semibold text-black mb-2">Reorder Level</label>
-                <input v-model.number="newIngredient.reorder_level" type="number" min="0"
-                  class="w-full border-blue-200 rounded-xl shadow focus:border-blue-400 focus:ring-2 focus:ring-blue-200 py-2 px-3 bg-white" />
+                <Label>Reorder Level</Label>
+                <Input v-model.number="newIngredient.reorder_level" type="number" min="0" />
               </div>
-              <div v-if="modalError" class="text-red-600 text-sm mb-2">{{ modalError }}</div>
-              <div class="flex justify-end gap-4 pt-6">
-                <button type="button" @click="showModal = false" :disabled="modalProcessing"
-                  class="px-6 py-2 rounded-xl border border-blue-200 text-blue-700 bg-white hover:bg-blue-50 font-semibold transition-all">Cancel</button>
-                <button type="submit" :disabled="modalProcessing"
-                  class="px-6 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 font-bold shadow transition-all disabled:opacity-50">
+              <div v-if="modalError" class="text-red-600 text-sm">{{ modalError }}</div>
+              <div class="flex justify-end gap-4">
+                <Button type="button" variant="outline" @click="showModal = false" :disabled="modalProcessing">Cancel</Button>
+                <Button type="submit" :disabled="modalProcessing">
                   {{ modalProcessing ? 'Saving...' : 'Save Ingredient' }}
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   </AppLayout>

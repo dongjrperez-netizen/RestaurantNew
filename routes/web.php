@@ -16,6 +16,10 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\AccountUpdateController;
 use App\Http\Controllers\RenewSubscriptionController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\SupplierBillController;
+use App\Http\Controllers\SupplierPaymentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -102,10 +106,14 @@ Route::post('/subscriptions/free-trial', [SubscriptionpackageController::class, 
 Route::get('/subscriptions/success', [SubscriptionpackageController::class, 'success'])->name('subscriptions.success');
 Route::get('/subscriptions/cancel', [SubscriptionpackageController::class, 'cancel'])->name('subscriptions.cancel');
 
+
+//inventory and stock in routes
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::get('/stock-list', [StockInController::class, 'index'])->name('stock-in.index');
     Route::get('/inventory/stock-in', [StockInController::class, 'create'])->name('stock-in.create');
     Route::post('/inventory/stock-in', [StockInController::class, 'store'])->name('stock-in.store');
     Route::post('/ingredients/store-quick', [StockInController::class, 'storeIngredient'])->name('ingredients.store.quick');
+    Route::get('/api/purchase-orders/{purchaseOrderId}/details', [StockInController::class, 'getPurchaseOrderDetails'])->name('purchase-orders.api-details');
 });
 
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
@@ -119,6 +127,43 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/subscriptions/renew/success', [RenewSubscriptionController::class, 'renewSuccess'])->name('subscriptions.renew.success');
     Route::get('/subscriptions/renew/cancel', [RenewSubscriptionController::class, 'renewCancel'])->name('subscriptions.renew.cancel');
 });
+
+// Supplier Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('suppliers', SupplierController::class);
+    Route::get('/suppliers/{id}/details', [SupplierController::class, 'getSupplierDetails'])->name('suppliers.details');
+    Route::post('/suppliers/{id}/toggle-status', [SupplierController::class, 'toggleStatus'])->name('suppliers.toggle-status');
+    Route::post('/suppliers/{id}/send-invitation', [SupplierController::class, 'sendInvitation'])->name('suppliers.send-invitation');
+});
+
+// Purchase Order Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('purchase-orders', PurchaseOrderController::class);
+    Route::post('/purchase-orders/{id}/submit', [PurchaseOrderController::class, 'submit'])->name('purchase-orders.submit');
+    Route::post('/purchase-orders/{id}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');
+    Route::post('/purchase-orders/{id}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
+    Route::get('/purchase-orders/{id}/receive', [PurchaseOrderController::class, 'receive'])->name('purchase-orders.receive');
+    Route::post('/purchase-orders/{id}/receive', [PurchaseOrderController::class, 'processReceive'])->name('purchase-orders.process-receive');
+});
+
+// Supplier Bills Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('bills', SupplierBillController::class);
+    Route::post('/bills/from-purchase-order/{purchaseOrderId}', [SupplierBillController::class, 'createFromPurchaseOrder'])->name('bills.from-purchase-order');
+    Route::get('/bills/{id}/download', [SupplierBillController::class, 'downloadAttachment'])->name('bills.download');
+    Route::post('/bills/mark-overdue', [SupplierBillController::class, 'markOverdue'])->name('bills.mark-overdue');
+});
+
+// Supplier Payments Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('payments', SupplierPaymentController::class);
+    Route::get('/payments/create/{billId}', [SupplierPaymentController::class, 'create'])->name('payments.create-for-bill');
+    Route::post('/payments/{id}/cancel', [SupplierPaymentController::class, 'cancel'])->name('payments.cancel');
+    Route::get('/api/bills/{id}/details', [SupplierPaymentController::class, 'getBillDetails'])->name('bills.api-details');
+});
+
+
+
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

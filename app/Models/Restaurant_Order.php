@@ -21,4 +21,13 @@ class Restaurant_Order extends Model
     {
         return $this->hasMany(Restaurant_Order_Items::class, 'order_id', 'order_id');
     }
+
+      public function supplier()
+    {
+        return $this->belongsTo(Supplier::class, 'supplier_id', 'supplier_id');
+    }
+     protected $casts = [
+        'order_date' => 'datetime',  // 👈 this ensures you can call ->format()
+    ];
+
 }

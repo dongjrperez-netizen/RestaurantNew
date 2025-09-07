@@ -33,6 +33,7 @@ const navItems = [
     icon: Users,
     children: [
       { title: "Employees", href: '/employees', icon: UserRound },
+      { title: "Suppliers", href: "/suppliers", icon: Truck },
     ]
   },
   {
@@ -40,24 +41,29 @@ const navItems = [
     icon: UtensilsCrossed,
     children: [
       { title: "Menu List", href: "/menu/list", icon: ClipboardList },
-      { title: "Stock-In", href: "/inventory/stock-in", icon: Box },
+   
     ]
   },
   {
     title: "POS Management",
     icon: ShoppingCart,
     children: [
-      { title: "Purchase Order", href: "/pos/purchase-order", icon: ClipboardList },
       { title: "Tables", href: "/pos/tables", icon: Box },
     ]
   },
   {
-    title: "Suppliers",
+    title: "Purchase Management",
     icon: Truck,
     children: [
-      { title: "Supplier List", href: "/supplier", icon: Users },
-      { title: "Purchase Order", href: "/suppliers/purchase-order", icon: ClipboardList },
-      { title: "Delivery", href: "/suppliers/delivery", icon: Truck },
+      { title: "Purchase Orders", href: "/purchase-orders", icon: ClipboardList },
+      { title: "Bills", href: "/bills", icon: Truck },
+    ]
+  },
+    {
+    title: "Inventory",
+    icon: Truck,
+    children: [
+      { title: "Stock-List", href: "/stock-list", icon: Users },
     ]
   },
 ]

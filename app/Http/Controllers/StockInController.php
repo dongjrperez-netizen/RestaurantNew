@@ -13,6 +13,51 @@ use DB;
 
 class StockInController extends Controller
 {
+    public function index()
+{
+    $user = auth()->user();
+    $restaurant = Restaurant_Data::where('user_id', $user->id)->first();
+
+    // Fetch orders with supplier + items + ingredient
+   $orders = Restaurant_Order::with(['supplier', 'items.ingredient'])
+    ->where('restaurant_id', $restaurant->id)
+    ->orderByDesc('order_date')
+    ->get()
+    ->map(function ($order) {
+        return [
+            'order_id'     => $order->order_id,
+            'supplier'     => $order->supplier
+                ? [
+                    'supplier_id'   => $order->supplier->supplier_id,
+                    'supplier_name' => $order->supplier->supplier_name,
+                ]
+                : null,
+            'reference_no' => $order->reference_no,
+            'status'       => $order->status,
+            'total_amount' => $order->total_amount ?? 0,
+            'order_date'   => $order->order_date,
+            'items'        => $order->items->map(function ($item) {
+                return [
+                    'order_item_id'   => $item->order_item_id,
+                    'ingredient_name' => $item->ingredient?->ingredient_name ?? '-',
+                    'item_type'       => $item->item_type,
+                    'unit'            => $item->unit,
+                    'quantity'        => $item->quantity,
+                    'unit_price'      => $item->unit_price,
+                    'total_price'     => $item->total_price,
+                ];
+            })->toArray(),
+        ];
+    })->toArray(); // <-- Convert collection to array
+
+return Inertia::render('Inventory/StockList', [
+    'stockOrders'    => $orders,
+    'totalOrders'    => count($orders),
+    'receivedOrders' => count(array_filter($orders, fn($o) => $o['status'] === 'Received')),
+    'pendingOrders'  => count(array_filter($orders, fn($o) => $o['status'] === 'Pending')),
+]);
+}
+
     public function create()
     {
         $user = auth()->user();
@@ -38,16 +83,14 @@ class StockInController extends Controller
             'items.*.unit_price' => 'required|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($data) {
+       DB::transaction(function () use ($data) {
             $order = Restaurant_Order::create([
                 'restaurant_id' => $data['restaurant_id'],
                 'supplier_id' => $data['supplier_id'],
                 'reference_no' => $data['reference_no'] ?? null,
                 'status' => 'Received',
-                'total_amount' => 0,
+                'total_amount' => 0, // initial, will update later
             ]);
-
-        
 
             $totalAmount = 0;
 
@@ -64,15 +107,15 @@ class StockInController extends Controller
                     'unit_price' => $item['unit_price'],
                     'total_price' => $total,
                 ]);
- 
 
-                $ingredient = Ingredients::find($item['ingredient_id']);
-                $ingredient->increment('current_stock', $item['quantity']);
+                Ingredients::find($item['ingredient_id'])->increment('current_stock', $item['quantity']);
+                $order->update(['total_amount' => $totalAmount]);
             }
-           
-            $order->update(['total_amount' => $totalAmount]);
-            DB::commit();
+
+            // Update total_amount after creating all items
+            // $order->update(['total_amount' => $totalAmount]);
         });
+
 
         return redirect()->route('stock-in.create')->with('success', 'Stock-in saved successfully!');
     }
