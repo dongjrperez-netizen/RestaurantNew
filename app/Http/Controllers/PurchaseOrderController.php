@@ -6,8 +6,13 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Models\Ingredients;
+use App\Models\IngredientSupplier;
+use App\Models\User;
+use App\Notifications\PurchaseOrderSubmitted;
+use App\Notifications\PurchaseOrderApproved;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 
 class PurchaseOrderController extends Controller
@@ -26,8 +31,43 @@ class PurchaseOrderController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        // Get pending approvals count for managers/owners
+        $pendingApprovalsCount = 0;
+        if ($user->role_id <= 2) { // Owner or Manager
+            $pendingApprovalsCount = PurchaseOrder::where('restaurant_id', $restaurantId)
+                ->where('status', 'pending')
+                ->count();
+        }
+
         return Inertia::render('PurchaseOrders/Index', [
-            'purchaseOrders' => $purchaseOrders
+            'purchaseOrders' => $purchaseOrders,
+            'pendingApprovalsCount' => $pendingApprovalsCount,
+            'userRole' => $user->role_id
+        ]);
+    }
+
+    public function pendingApprovals()
+    {
+        $user = auth()->user();
+        if (!$user->restaurantData) {
+            return redirect()->back()->with('error', 'No restaurant data found. Please complete your restaurant setup.');
+        }
+
+        // Only allow managers and owners to access this
+        if ($user->role_id > 2) {
+            return redirect()->back()->with('error', 'Access denied. Only managers can approve purchase orders.');
+        }
+        
+        $restaurantId = $user->restaurantData->id;
+        
+        $pendingOrders = PurchaseOrder::with(['supplier', 'items.ingredient', 'createdBy'])
+            ->where('restaurant_id', $restaurantId)
+            ->where('status', 'pending')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return Inertia::render('PurchaseOrders/PendingApprovals', [
+            'pendingOrders' => $pendingOrders
         ]);
     }
 
@@ -55,24 +95,23 @@ class PurchaseOrderController extends Controller
         
         $restaurantId = $user->restaurantData->id;
         
-        $suppliers = Supplier::with(['ingredients' => function ($query) use ($restaurantId) {
-                $query->where('restaurant_id', $restaurantId);
-            }, 'ingredients.pivot'])
-            ->where('is_active', true)
-            ->whereHas('ingredients', function ($query) use ($restaurantId) {
-                $query->where('restaurant_id', $restaurantId);
-            })
+        // Get suppliers that have ingredient offerings
+        $suppliers = Supplier::where('is_active', true)
+            ->whereHas('ingredients')
+            ->with(['ingredients'])
             ->orderBy('supplier_name')
             ->get();
 
-        $ingredients = Ingredients::where('restaurant_id', $restaurantId)
-            ->with(['suppliers.pivot'])
-            ->orderBy('ingredient_name')
-            ->get();
+        // Get all ingredient offerings (supplier inventory) - not restaurant inventory
+        $supplierOfferings = IngredientSupplier::with(['ingredient', 'supplier'])
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('supplier_id');
 
         return Inertia::render('PurchaseOrders/Create', [
             'suppliers' => $suppliers,
-            'ingredients' => $ingredients
+            'supplierOfferings' => $supplierOfferings
         ]);
     }
 
@@ -80,7 +119,7 @@ class PurchaseOrderController extends Controller
     {
         $validated = $request->validate([
             'supplier_id' => 'required|exists:suppliers,supplier_id',
-            'expected_delivery_date' => 'nullable|date|after:today',
+            'expected_delivery_date' => 'nullable|date',
             'notes' => 'nullable|string',
             'delivery_instructions' => 'nullable|string',
             'items' => 'required|array|min:1',
@@ -103,12 +142,18 @@ class PurchaseOrderController extends Controller
                 return redirect()->back()->with('error', 'No restaurant data found.');
             }
 
+            // Calculate expected delivery date if not provided
+            $expectedDeliveryDate = $validated['expected_delivery_date'];
+            if (empty($expectedDeliveryDate)) {
+                $expectedDeliveryDate = $this->calculateExpectedDeliveryDate($validated['supplier_id'], $validated['items']);
+            }
+
             $purchaseOrder = PurchaseOrder::create([
                 'restaurant_id' => $user->restaurantData->id,
                 'supplier_id' => $validated['supplier_id'],
                 'status' => 'draft',
                 'order_date' => now(),
-                'expected_delivery_date' => $validated['expected_delivery_date'],
+                'expected_delivery_date' => $expectedDeliveryDate,
                 'subtotal' => $subtotal,
                 'tax_amount' => 0,
                 'shipping_amount' => 0,
@@ -163,25 +208,24 @@ class PurchaseOrderController extends Controller
         
         $restaurantId = $user->restaurantData->id;
         
-        $suppliers = Supplier::with(['ingredients' => function ($query) use ($restaurantId) {
-                $query->where('restaurant_id', $restaurantId);
-            }, 'ingredients.pivot'])
-            ->where('is_active', true)
-            ->whereHas('ingredients', function ($query) use ($restaurantId) {
-                $query->where('restaurant_id', $restaurantId);
-            })
+        // Get suppliers that have ingredient offerings
+        $suppliers = Supplier::where('is_active', true)
+            ->whereHas('ingredients')
+            ->with(['ingredients'])
             ->orderBy('supplier_name')
             ->get();
 
-        $ingredients = Ingredients::where('restaurant_id', $restaurantId)
-            ->with(['suppliers.pivot'])
-            ->orderBy('ingredient_name')
-            ->get();
+        // Get all ingredient offerings (supplier inventory) - not restaurant inventory
+        $supplierOfferings = IngredientSupplier::with(['ingredient', 'supplier'])
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->get()
+            ->groupBy('supplier_id');
 
         return Inertia::render('PurchaseOrders/Edit', [
             'purchaseOrder' => $purchaseOrder,
             'suppliers' => $suppliers,
-            'ingredients' => $ingredients
+            'supplierOfferings' => $supplierOfferings
         ]);
     }
 
@@ -196,7 +240,7 @@ class PurchaseOrderController extends Controller
 
         $validated = $request->validate([
             'supplier_id' => 'required|exists:suppliers,supplier_id',
-            'expected_delivery_date' => 'nullable|date|after:today',
+            'expected_delivery_date' => 'nullable|date',
             'notes' => 'nullable|string',
             'delivery_instructions' => 'nullable|string',
             'items' => 'required|array|min:1',
@@ -214,9 +258,15 @@ class PurchaseOrderController extends Controller
                 return $item['ordered_quantity'] * $item['unit_price'];
             });
 
+            // Calculate expected delivery date if not provided
+            $expectedDeliveryDate = $validated['expected_delivery_date'];
+            if (empty($expectedDeliveryDate)) {
+                $expectedDeliveryDate = $this->calculateExpectedDeliveryDate($validated['supplier_id'], $validated['items']);
+            }
+
             $purchaseOrder->update([
                 'supplier_id' => $validated['supplier_id'],
-                'expected_delivery_date' => $validated['expected_delivery_date'],
+                'expected_delivery_date' => $expectedDeliveryDate,
                 'subtotal' => $subtotal,
                 'total_amount' => $subtotal,
                 'notes' => $validated['notes'],
@@ -267,6 +317,9 @@ class PurchaseOrderController extends Controller
             'approved_at' => now()
         ]);
 
+        // Send notification to supplier about the new order
+        $this->notifySupplierOfNewOrder($purchaseOrder);
+
         return redirect()->back()
             ->with('success', 'Purchase Order approved and sent to supplier.');
     }
@@ -281,6 +334,9 @@ class PurchaseOrderController extends Controller
         }
 
         $purchaseOrder->update(['status' => 'pending']);
+
+        // Send notification to restaurant owner/managers for approval
+        $this->notifyManagersForApproval($purchaseOrder);
 
         return redirect()->back()
             ->with('success', 'Purchase Order submitted for approval.');
@@ -367,5 +423,65 @@ class PurchaseOrderController extends Controller
                 ->withInput()
                 ->with('error', 'Error processing delivery: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Calculate expected delivery date based on supplier lead times
+     */
+    private function calculateExpectedDeliveryDate($supplierId, $items)
+    {
+        $maxLeadTime = 0;
+
+        foreach ($items as $item) {
+            $offering = IngredientSupplier::where('supplier_id', $supplierId)
+                ->where('ingredient_id', $item['ingredient_id'])
+                ->where('is_active', true)
+                ->first();
+
+            if ($offering && $offering->lead_time_days > $maxLeadTime) {
+                $maxLeadTime = $offering->lead_time_days;
+            }
+        }
+
+        if ($maxLeadTime === 0) {
+            return null;
+        }
+
+        // Calculate delivery date: today + max lead time
+        $deliveryDate = now()->addDays(ceil($maxLeadTime));
+        return $deliveryDate->format('Y-m-d');
+    }
+
+    /**
+     * Send notification to restaurant managers for purchase order approval
+     */
+    private function notifyManagersForApproval(PurchaseOrder $purchaseOrder)
+    {
+        // Load required relationships
+        $purchaseOrder->load(['supplier', 'createdBy', 'restaurant']);
+
+        // Find restaurant managers/owners (role_id 1 or 2) for this restaurant
+        $managers = User::where('role_id', '<=', 2) // Assuming 1 = Owner, 2 = Manager
+            ->whereHas('restaurantData', function($query) use ($purchaseOrder) {
+                $query->where('id', $purchaseOrder->restaurant_id);
+            })
+            ->get();
+
+        // Send notification to all managers
+        foreach ($managers as $manager) {
+            $manager->notify(new PurchaseOrderSubmitted($purchaseOrder));
+        }
+    }
+
+    /**
+     * Send notification to supplier about new purchase order
+     */
+    private function notifySupplierOfNewOrder(PurchaseOrder $purchaseOrder)
+    {
+        // Load required relationships
+        $purchaseOrder->load(['supplier', 'restaurant']);
+
+        // Send notification to supplier
+        $purchaseOrder->supplier->notify(new PurchaseOrderApproved($purchaseOrder));
     }
 }

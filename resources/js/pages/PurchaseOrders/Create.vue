@@ -15,27 +15,25 @@ import { type BreadcrumbItem } from '@/types';
 interface Supplier {
   supplier_id: number;
   supplier_name: string;
-  ingredients: {
-    ingredient_id: number;
-    ingredient_name: string;
-    pivot: {
-      cost_per_unit: number;
-      unit_of_measure: string;
-    };
-  }[];
 }
 
-interface Ingredient {
+interface SupplierOffering {
+  id: number;
   ingredient_id: number;
-  ingredient_name: string;
-  suppliers: {
+  supplier_id: number;
+  package_unit: string;
+  package_quantity: number;
+  package_price: number;
+  lead_time_days: number;
+  minimum_order_quantity: number;
+  ingredient: {
+    ingredient_id: number;
+    ingredient_name: string;
+  };
+  supplier: {
     supplier_id: number;
     supplier_name: string;
-    pivot: {
-      cost_per_unit: number;
-      unit_of_measure: string;
-    };
-  }[];
+  };
 }
 
 interface OrderItem {
@@ -49,7 +47,7 @@ interface OrderItem {
 
 interface Props {
   suppliers: Supplier[];
-  ingredients: Ingredient[];
+  supplierOfferings: Record<number, SupplierOffering[]>;
 }
 
 const props = defineProps<Props>();
@@ -80,14 +78,38 @@ const form = useForm({
 const availableIngredients = computed(() => {
   if (!selectedSupplier.value) return [];
   
-  const supplier = props.suppliers.find(s => s.supplier_id === selectedSupplier.value);
-  return supplier?.ingredients || [];
+  return props.supplierOfferings[selectedSupplier.value] || [];
 });
 
 const subtotal = computed(() => {
   return orderItems.value.reduce((sum, item) => {
     return sum + (item.ordered_quantity * item.unit_price);
   }, 0);
+});
+
+const expectedDeliveryDate = computed(() => {
+  if (!selectedSupplier.value || orderItems.value.length === 0) return '';
+  
+  // Find the maximum lead time from all selected ingredients
+  let maxLeadTime = 0;
+  
+  for (const item of orderItems.value) {
+    if (item.ingredient_id) {
+      const offering = availableIngredients.value.find(off => off.ingredient.ingredient_id === item.ingredient_id);
+      if (offering && offering.lead_time_days > maxLeadTime) {
+        maxLeadTime = offering.lead_time_days;
+      }
+    }
+  }
+  
+  if (maxLeadTime === 0) return '';
+  
+  // Calculate delivery date: today + max lead time
+  const today = new Date();
+  const deliveryDate = new Date(today);
+  deliveryDate.setDate(today.getDate() + Math.ceil(maxLeadTime));
+  
+  return deliveryDate.toISOString().split('T')[0];
 });
 
 const addOrderItem = () => {
@@ -109,18 +131,14 @@ const removeOrderItem = (index: number) => {
 const onIngredientSelect = (itemIndex: number, ingredientId: number) => {
   if (!ingredientId) return;
   
-  const ingredient = availableIngredients.value.find(ing => ing.ingredient_id === ingredientId);
-  if (ingredient) {
+  const offering = availableIngredients.value.find(off => off.ingredient.ingredient_id === ingredientId);
+  if (offering) {
     orderItems.value[itemIndex].ingredient_id = ingredientId;
-    orderItems.value[itemIndex].unit_price = ingredient.pivot.cost_per_unit;
-    orderItems.value[itemIndex].unit_of_measure = ingredient.pivot.unit_of_measure;
+    orderItems.value[itemIndex].unit_price = offering.package_price;
+    orderItems.value[itemIndex].unit_of_measure = offering.package_unit;
   }
 };
 
-const getIngredientName = (ingredientId: number) => {
-  const ingredient = availableIngredients.value.find(ing => ing.ingredient_id === ingredientId);
-  return ingredient?.ingredient_name || '';
-};
 
 const formatCurrency = (amount: number) => {
   return `₱${Number(amount).toLocaleString()}`;
@@ -136,6 +154,11 @@ watch(selectedSupplier, (newValue) => {
     unit_of_measure: '',
     notes: ''
   }];
+});
+
+// Watch for changes in expected delivery date and update form
+watch(expectedDeliveryDate, (newDate) => {
+  form.expected_delivery_date = newDate;
 });
 
 const submit = () => {
@@ -197,8 +220,17 @@ const submit = () => {
                   id="expected_delivery_date"
                   v-model="form.expected_delivery_date"
                   type="date"
-                  :min="new Date().toISOString().split('T')[0]"
+                  readonly
+                  class="bg-gray-50 cursor-not-allowed"
                 />
+                <div class="text-xs text-muted-foreground">
+                  <span v-if="expectedDeliveryDate">
+                    Automatically calculated based on supplier lead times
+                  </span>
+                  <span v-else>
+                    Select ingredients to calculate delivery date
+                  </span>
+                </div>
                 <div v-if="form.errors.expected_delivery_date" class="text-sm text-red-600">
                   {{ form.errors.expected_delivery_date }}
                 </div>
@@ -282,11 +314,12 @@ const submit = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem 
-                            v-for="ingredient in availableIngredients" 
-                            :key="ingredient.ingredient_id"
-                            :value="ingredient.ingredient_id"
+                            v-for="offering in availableIngredients" 
+                            :key="offering.ingredient.ingredient_id"
+                            :value="offering.ingredient.ingredient_id"
                           >
-                            {{ ingredient.ingredient_name }}
+                            {{ offering.ingredient.ingredient_name }} 
+                            ({{ formatCurrency(offering.package_price) }}/{{ offering.package_unit }})
                           </SelectItem>
                         </SelectContent>
                       </Select>

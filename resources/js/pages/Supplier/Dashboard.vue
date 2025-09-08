@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import SupplierLayout from '@/layouts/SupplierLayout.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import  Badge  from '@/components/ui/badge/Badge.vue';
@@ -125,10 +125,11 @@ const formatDate = (dateString: string) => {
             No recent orders found
           </div>
           <div v-else class="space-y-4">
-            <div 
+            <Link
               v-for="order in recentOrders" 
               :key="order.purchase_order_id"
-              class="flex items-center justify-between p-4 border rounded-lg"
+              :href="`/supplier/purchase-orders/${order.purchase_order_id}`"
+              class="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
             >
               <div class="flex-1">
                 <div class="flex items-center gap-3">
@@ -144,7 +145,7 @@ const formatDate = (dateString: string) => {
               <div class="text-right">
                 <div class="font-medium">{{ formatCurrency(order.total_amount) }}</div>
               </div>
-            </div>
+            </Link>
           </div>
         </CardContent>
       </Card>
@@ -158,7 +159,7 @@ const formatDate = (dateString: string) => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div class="grid gap-4 md:grid-cols-2">
+          <div class="grid gap-4 md:grid-cols-3">
             <a 
               href="/supplier/ingredients/create"
               class="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
@@ -178,6 +179,17 @@ const formatDate = (dateString: string) => {
               <div>
                 <div class="font-medium">Manage Ingredients</div>
                 <div class="text-sm text-muted-foreground">Update your ingredient offers</div>
+              </div>
+            </a>
+
+            <a 
+              href="/supplier/purchase-orders"
+              class="flex items-center p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <ShoppingCart class="h-8 w-8 text-primary mr-3" />
+              <div>
+                <div class="font-medium">View All Orders</div>
+                <div class="text-sm text-muted-foreground">Manage purchase orders from restaurants</div>
               </div>
             </a>
           </div>

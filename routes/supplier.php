@@ -3,6 +3,7 @@
 use App\Http\Controllers\Supplier\AuthController;
 use App\Http\Controllers\Supplier\DashboardController;
 use App\Http\Controllers\Supplier\IngredientOfferController;
+use App\Http\Controllers\Supplier\PurchaseOrderController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -39,5 +40,14 @@ Route::middleware('auth:supplier')->group(function () {
         Route::get('/{ingredient}/edit', [IngredientOfferController::class, 'edit'])->name('edit');
         Route::put('/{ingredient}', [IngredientOfferController::class, 'update'])->name('update');
         Route::delete('/{ingredient}', [IngredientOfferController::class, 'destroy'])->name('destroy');
+    });
+    
+    // Purchase Orders Management
+    Route::prefix('purchase-orders')->name('supplier.purchase-orders.')->group(function () {
+        Route::get('/', [PurchaseOrderController::class, 'index'])->name('index');
+        Route::get('/{id}', [PurchaseOrderController::class, 'show'])->name('show');
+        Route::post('/{id}/confirm', [PurchaseOrderController::class, 'confirm'])->name('confirm');
+        Route::post('/{id}/reject', [PurchaseOrderController::class, 'reject'])->name('reject');
+        Route::post('/{id}/mark-delivered', [PurchaseOrderController::class, 'markDelivered'])->name('mark-delivered');
     });
 });

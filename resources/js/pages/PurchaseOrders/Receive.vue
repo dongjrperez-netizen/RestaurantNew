@@ -104,13 +104,13 @@ const getTotalReceiving = () => {
   }, 0);
 };
 
-const getReceiveStatus = (item: PurchaseOrderItem, receiveQuantity: number) => {
+const getReceiveStatus = (item: PurchaseOrderItem, receiveQuantity: number): { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' } => {
   const totalAfterReceive = item.received_quantity + receiveQuantity;
   const ordered = item.ordered_quantity;
   
   if (totalAfterReceive === 0) return { label: 'Not Received', variant: 'secondary' };
-  if (totalAfterReceive < ordered) return { label: 'Partial', variant: 'default' };
-  if (totalAfterReceive === ordered) return { label: 'Complete', variant: 'default' };
+  if (totalAfterReceive < ordered) return { label: 'Partial', variant: 'warning' };
+  if (totalAfterReceive === ordered) return { label: 'Complete', variant: 'success' };
   return { label: 'Over Received', variant: 'destructive' };
 };
 

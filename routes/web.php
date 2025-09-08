@@ -138,6 +138,7 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
 
 // Purchase Order Management Routes
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::get('/purchase-orders/pending-approvals', [PurchaseOrderController::class, 'pendingApprovals'])->name('purchase-orders.pending-approvals');
     Route::resource('purchase-orders', PurchaseOrderController::class);
     Route::post('/purchase-orders/{id}/submit', [PurchaseOrderController::class, 'submit'])->name('purchase-orders.submit');
     Route::post('/purchase-orders/{id}/approve', [PurchaseOrderController::class, 'approve'])->name('purchase-orders.approve');

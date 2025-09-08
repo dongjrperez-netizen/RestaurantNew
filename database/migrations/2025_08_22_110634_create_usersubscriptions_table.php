@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('usersubscriptions', function (Blueprint $table) {
             $table->id('userSubscription_id');
             $table->date('subscription_startDate');
-            $table->date('subscription_endDate')->timestamp();
+            $table->timestamp('subscription_endDate');
             $table->integer('remaining_days')->default(0);
             $table->boolean('is_trial')->default(true);
             $table->string('subscription_status')->default('active');

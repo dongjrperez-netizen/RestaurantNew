@@ -2,7 +2,7 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import  Badge  from '@/components/ui/badge/Badge.vue';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
@@ -71,17 +71,17 @@ const approveForm = useForm({});
 const cancelForm = useForm({});
 
 const getStatusBadge = (status: string) => {
-  const statusConfig = {
+  const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'; label: string }> = {
     'draft': { variant: 'secondary', label: 'Draft' },
     'pending': { variant: 'default', label: 'Pending' },
     'sent': { variant: 'default', label: 'Sent' },
-    'confirmed': { variant: 'default', label: 'Confirmed' },
-    'partially_delivered': { variant: 'default', label: 'Partially Delivered' },
-    'delivered': { variant: 'default', label: 'Delivered' },
+    'confirmed': { variant: 'success', label: 'Confirmed' },
+    'partially_delivered': { variant: 'warning', label: 'Partially Delivered' },
+    'delivered': { variant: 'success', label: 'Delivered' },
     'cancelled': { variant: 'destructive', label: 'Cancelled' }
   };
   
-  return statusConfig[status] || { variant: 'secondary', label: status };
+  return statusConfig[status] || { variant: 'secondary' as const, label: status };
 };
 
 const formatDate = (dateString: string) => {
