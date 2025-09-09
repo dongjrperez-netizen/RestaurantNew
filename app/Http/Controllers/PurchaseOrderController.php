@@ -359,7 +359,7 @@ class PurchaseOrderController extends Controller
 
     public function receive($id)
     {
-        $purchaseOrder = PurchaseOrder::with('items.ingredient')->findOrFail($id);
+        $purchaseOrder = PurchaseOrder::with('items.ingredient', 'supplier')->findOrFail($id);
 
         if (!in_array($purchaseOrder->status, ['confirmed', 'partially_delivered'])) {
             return redirect()->back()
@@ -373,13 +373,20 @@ class PurchaseOrderController extends Controller
 
     public function processReceive(Request $request, $id)
     {
-        $purchaseOrder = PurchaseOrder::with('items.ingredient')->findOrFail($id);
+        $purchaseOrder = PurchaseOrder::with(['items.ingredient'])->findOrFail($id);
 
         $validated = $request->validate([
             'items' => 'required|array',
             'items.*.purchase_order_item_id' => 'required|exists:purchase_order_items,purchase_order_item_id',
             'items.*.received_quantity' => 'required|numeric|min:0',
-            'actual_delivery_date' => 'required|date'
+            'items.*.quality_rating' => 'nullable|in:excellent,good,fair,poor',
+            'items.*.condition_notes' => 'nullable|string|max:500',
+            'items.*.has_discrepancy' => 'boolean',
+            'items.*.discrepancy_reason' => 'required_if:items.*.has_discrepancy,true|nullable|string|max:500',
+            'actual_delivery_date' => 'required|date',
+            'delivery_condition' => 'required|in:excellent,good,fair,poor',
+            'received_by' => 'required|string|max:100',
+            'general_notes' => 'nullable|string|max:1000'
         ]);
 
         try {
@@ -392,7 +399,11 @@ class PurchaseOrderController extends Controller
                 $newReceivedQuantity = $item->received_quantity + $itemData['received_quantity'];
                 
                 $item->update([
-                    'received_quantity' => $newReceivedQuantity
+                    'received_quantity' => $newReceivedQuantity,
+                    'quality_rating' => $itemData['quality_rating'] ?? null,
+                    'condition_notes' => $itemData['condition_notes'] ?? null,
+                    'has_discrepancy' => $itemData['has_discrepancy'] ?? false,
+                    'discrepancy_reason' => $itemData['discrepancy_reason'] ?? null
                 ]);
 
                 if ($newReceivedQuantity < $item->ordered_quantity) {
@@ -400,8 +411,16 @@ class PurchaseOrderController extends Controller
                 }
 
                 if ($itemData['received_quantity'] > 0) {
-                    $ingredient = $item->ingredient;
-                    $ingredient->increment('current_stock', $itemData['received_quantity']);
+                    $ingredient = Ingredients::find($item->ingredient_id);
+                    if ($ingredient) {
+                        $oldStock = $ingredient->current_stock;
+                        $ingredient->current_stock += $itemData['received_quantity'];
+                        $ingredient->save();
+                        
+                        \Log::info("Stock updated for ingredient {$ingredient->ingredient_name}: {$oldStock} -> {$ingredient->current_stock} (+" . $itemData['received_quantity'] . ")");
+                    } else {
+                        \Log::error("Ingredient not found with ID: " . $item->ingredient_id);
+                    }
                 }
             }
 
@@ -409,7 +428,10 @@ class PurchaseOrderController extends Controller
             
             $purchaseOrder->update([
                 'status' => $newStatus,
-                'actual_delivery_date' => $validated['actual_delivery_date']
+                'actual_delivery_date' => $validated['actual_delivery_date'],
+                'delivery_condition' => $validated['delivery_condition'],
+                'received_by' => $validated['received_by'],
+                'receiving_notes' => $validated['general_notes']
             ]);
 
             DB::commit();

@@ -19,6 +19,10 @@ interface PurchaseOrderItem {
   total_price: number;
   unit_of_measure: string;
   notes?: string;
+  quality_rating?: string;
+  condition_notes?: string;
+  has_discrepancy?: boolean;
+  discrepancy_reason?: string;
 }
 
 interface PurchaseOrder {
@@ -28,6 +32,9 @@ interface PurchaseOrder {
   order_date: string;
   expected_delivery_date?: string;
   actual_delivery_date?: string;
+  delivery_condition?: string;
+  received_by?: string;
+  receiving_notes?: string;
   subtotal: number;
   tax_amount: number;
   shipping_amount: number;
@@ -215,6 +222,21 @@ const cancelOrder = () => {
               <label class="text-sm font-medium text-muted-foreground">Delivery Instructions</label>
               <div class="text-sm">{{ purchaseOrder.delivery_instructions }}</div>
             </div>
+
+            <div v-if="purchaseOrder.delivery_condition">
+              <label class="text-sm font-medium text-muted-foreground">Delivery Condition</label>
+              <div class="capitalize">{{ purchaseOrder.delivery_condition }}</div>
+            </div>
+
+            <div v-if="purchaseOrder.received_by">
+              <label class="text-sm font-medium text-muted-foreground">Received By</label>
+              <div>{{ purchaseOrder.received_by }}</div>
+            </div>
+
+            <div v-if="purchaseOrder.receiving_notes">
+              <label class="text-sm font-medium text-muted-foreground">Receiving Notes</label>
+              <div class="text-sm">{{ purchaseOrder.receiving_notes }}</div>
+            </div>
           </CardContent>
         </Card>
 
@@ -262,6 +284,7 @@ const cancelOrder = () => {
                 <TableHead>Unit Price</TableHead>
                 <TableHead>Total Price</TableHead>
                 <TableHead>Unit</TableHead>
+                <TableHead>Quality</TableHead>
                 <TableHead>Notes</TableHead>
               </TableRow>
             </TableHeader>
@@ -302,8 +325,34 @@ const cancelOrder = () => {
                   {{ item.unit_of_measure }}
                 </TableCell>
                 <TableCell>
-                  <span v-if="item.notes" class="text-sm text-muted-foreground">{{ item.notes }}</span>
-                  <span v-else class="text-muted-foreground">-</span>
+                  <div v-if="item.quality_rating" class="space-y-1">
+                    <Badge 
+                      :variant="item.quality_rating === 'excellent' ? 'default' : 
+                               item.quality_rating === 'good' ? 'secondary' : 
+                               item.quality_rating === 'fair' ? 'warning' : 'destructive'"
+                      class="text-xs capitalize"
+                    >
+                      {{ item.quality_rating }}
+                    </Badge>
+                    <div v-if="item.has_discrepancy" class="flex items-center space-x-1">
+                      <Badge variant="destructive" class="text-xs">
+                        Discrepancy
+                      </Badge>
+                    </div>
+                  </div>
+                  <span v-else class="text-muted-foreground text-sm">Not rated</span>
+                </TableCell>
+                <TableCell>
+                  <div class="space-y-1">
+                    <span v-if="item.notes" class="text-sm text-muted-foreground block">{{ item.notes }}</span>
+                    <span v-if="item.condition_notes" class="text-sm text-muted-foreground block">
+                      <span class="font-medium">Condition:</span> {{ item.condition_notes }}
+                    </span>
+                    <span v-if="item.discrepancy_reason" class="text-sm text-red-600 block">
+                      <span class="font-medium">Issue:</span> {{ item.discrepancy_reason }}
+                    </span>
+                    <span v-if="!item.notes && !item.condition_notes && !item.discrepancy_reason" class="text-muted-foreground">-</span>
+                  </div>
                 </TableCell>
               </TableRow>
             </TableBody>

@@ -34,13 +34,15 @@ class IngredientOfferController extends Controller
 
     public function create()
     {
-        // Get all restaurants to offer ingredients to
-        $restaurants = Restaurant_Data::select('id', 'restaurant_name', 'address')
-            ->orderBy('restaurant_name')
-            ->get();
+        $supplier = Auth::guard('supplier')->user();
+        
+        // Get only the restaurant that invited this supplier
+        $restaurant = Restaurant_Data::select('id', 'restaurant_name', 'address')
+            ->where('id', $supplier->restaurant_id)
+            ->first();
 
         return Inertia::render('Supplier/Ingredients/Create', [
-            'restaurants' => $restaurants
+            'restaurant' => $restaurant
         ]);
     }
 
@@ -50,7 +52,6 @@ class IngredientOfferController extends Controller
         $supplier = Auth::guard('supplier')->user();
 
         $request->validate([
-            'restaurant_id' => 'required|exists:restaurant_data,id',
             'ingredient_name' => 'required|string|max:150',
             'base_unit' => 'required|string|max:50',
             'package_unit' => 'required|string|max:50',
@@ -63,9 +64,12 @@ class IngredientOfferController extends Controller
         DB::beginTransaction();
         
         try {
+            // Use the supplier's associated restaurant_id automatically
+            $restaurantId = $supplier->restaurant_id;
+            
             // First, create or find the ingredient in the restaurant's ingredients table
             $ingredient = Ingredients::firstOrCreate([
-                'restaurant_id' => $request->restaurant_id,
+                'restaurant_id' => $restaurantId,
                 'ingredient_name' => $request->ingredient_name,
                 'base_unit' => $request->base_unit,
             ], [

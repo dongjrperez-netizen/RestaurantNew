@@ -37,6 +37,10 @@ interface PurchaseOrder {
 interface ReceiveItem {
   purchase_order_item_id: number;
   received_quantity: number;
+  quality_rating: 'excellent' | 'good' | 'fair' | 'poor' | '';
+  condition_notes: string;
+  has_discrepancy: boolean;
+  discrepancy_reason: string;
 }
 
 interface Props {
@@ -55,12 +59,19 @@ const breadcrumbs: BreadcrumbItem[] = [
 const receiveItems = ref<ReceiveItem[]>(
   props.purchaseOrder.items.map(item => ({
     purchase_order_item_id: item.purchase_order_item_id,
-    received_quantity: 0
+    received_quantity: 0,
+    quality_rating: '',
+    condition_notes: '',
+    has_discrepancy: false,
+    discrepancy_reason: ''
   }))
 );
 
 const form = useForm({
   actual_delivery_date: new Date().toISOString().split('T')[0],
+  delivery_condition: 'good',
+  received_by: '',
+  general_notes: '',
   items: receiveItems.value
 });
 
@@ -114,6 +125,30 @@ const getReceiveStatus = (item: PurchaseOrderItem, receiveQuantity: number): { l
   return { label: 'Over Received', variant: 'destructive' };
 };
 
+const getQualityBadge = (rating: string): { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' } => {
+  const qualityConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' }> = {
+    'excellent': { variant: 'success' },
+    'good': { variant: 'default' },
+    'fair': { variant: 'warning' },
+    'poor': { variant: 'destructive' }
+  };
+  return qualityConfig[rating] || { variant: 'secondary' };
+};
+
+const checkForDiscrepancy = (index: number) => {
+  const item = props.purchaseOrder.items[index];
+  const receiveItem = receiveItems.value[index];
+  
+  const hasQuantityDiscrepancy = receiveItem.received_quantity !== getRemainingQuantity(item);
+  const hasQualityIssue = receiveItem.quality_rating === 'fair' || receiveItem.quality_rating === 'poor';
+  
+  receiveItems.value[index].has_discrepancy = hasQuantityDiscrepancy || hasQualityIssue;
+  
+  if (!receiveItems.value[index].has_discrepancy) {
+    receiveItems.value[index].discrepancy_reason = '';
+  }
+};
+
 const submit = () => {
   form.items = receiveItems.value;
   form.post(`/purchase-orders/${props.purchaseOrder.purchase_order_id}/receive`);
@@ -164,23 +199,64 @@ const submit = () => {
       </Card>
 
       <form @submit.prevent="submit" class="space-y-6">
-        <!-- Delivery Date -->
+        <!-- Delivery Information -->
         <Card>
           <CardHeader>
             <CardTitle>Delivery Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div class="space-y-2 max-w-xs">
-              <Label for="actual_delivery_date">Actual Delivery Date *</Label>
-              <Input
-                id="actual_delivery_date"
-                v-model="form.actual_delivery_date"
-                type="date"
-                required
-              />
-              <div v-if="form.errors.actual_delivery_date" class="text-sm text-red-600">
-                {{ form.errors.actual_delivery_date }}
+            <div class="grid gap-4 md:grid-cols-3">
+              <div class="space-y-2">
+                <Label for="actual_delivery_date">Actual Delivery Date *</Label>
+                <Input
+                  id="actual_delivery_date"
+                  v-model="form.actual_delivery_date"
+                  type="date"
+                  required
+                />
+                <div v-if="form.errors.actual_delivery_date" class="text-sm text-red-600">
+                  {{ form.errors.actual_delivery_date }}
+                </div>
               </div>
+
+              <div class="space-y-2">
+                <Label for="delivery_condition">Overall Delivery Condition</Label>
+                <select
+                  id="delivery_condition"
+                  v-model="form.delivery_condition"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                  <option value="poor">Poor</option>
+                </select>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="received_by">Received By *</Label>
+                <Input
+                  id="received_by"
+                  v-model="form.received_by"
+                  type="text"
+                  placeholder="Enter receiver name"
+                  required
+                />
+                <div v-if="form.errors.received_by" class="text-sm text-red-600">
+                  {{ form.errors.received_by }}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 space-y-2">
+              <Label for="general_notes">General Delivery Notes</Label>
+              <textarea
+                id="general_notes"
+                v-model="form.general_notes"
+                rows="3"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Add any general notes about the delivery..."
+              ></textarea>
             </div>
           </CardContent>
         </Card>
@@ -201,52 +277,66 @@ const submit = () => {
             </div>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Ingredient</TableHead>
-                  <TableHead>Ordered Qty</TableHead>
-                  <TableHead>Already Received</TableHead>
-                  <TableHead>Remaining</TableHead>
-                  <TableHead>Receiving Now</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow v-for="(item, index) in purchaseOrder.items" :key="item.purchase_order_item_id">
-                  <TableCell class="font-medium">
-                    {{ item.ingredient.ingredient_name }}
-                  </TableCell>
-                  <TableCell>
-                    {{ item.ordered_quantity }}
-                  </TableCell>
-                  <TableCell>
-                    {{ item.received_quantity }}
-                  </TableCell>
-                  <TableCell class="font-medium">
-                    {{ getRemainingQuantity(item) }}
-                  </TableCell>
-                  <TableCell>
+            <div class="space-y-4">
+              <div v-for="(item, index) in purchaseOrder.items" :key="item.purchase_order_item_id" class="border rounded-lg p-4 space-y-4">
+                <!-- Item Header -->
+                <div class="flex justify-between items-start">
+                  <div>
+                    <h4 class="font-medium">{{ item.ingredient.ingredient_name }}</h4>
+                    <p class="text-sm text-muted-foreground">
+                      Ordered: {{ item.ordered_quantity }} {{ item.unit_of_measure }} | 
+                      Already Received: {{ item.received_quantity }} | 
+                      Remaining: {{ getRemainingQuantity(item) }}
+                    </p>
+                  </div>
+                  <Badge :variant="getReceiveStatus(item, receiveItems[index].received_quantity).variant">
+                    {{ getReceiveStatus(item, receiveItems[index].received_quantity).label }}
+                  </Badge>
+                </div>
+
+                <!-- Receiving Details -->
+                <div class="grid gap-4 md:grid-cols-4">
+                  <div class="space-y-2">
+                    <Label>Receiving Now</Label>
                     <Input
                       v-model.number="receiveItems[index].received_quantity"
                       type="number"
                       step="0.01"
                       min="0"
                       :max="getRemainingQuantity(item) * 1.1"
-                      class="w-24"
+                      @input="checkForDiscrepancy(index)"
                     />
-                  </TableCell>
-                  <TableCell>
-                    {{ item.unit_of_measure }}
-                  </TableCell>
-                  <TableCell>
-                    <Badge :variant="getReceiveStatus(item, receiveItems[index].received_quantity).variant">
-                      {{ getReceiveStatus(item, receiveItems[index].received_quantity).label }}
+                  </div>
+
+                  <div class="space-y-2">
+                    <Label>Quality Rating</Label>
+                    <select
+                      v-model="receiveItems[index].quality_rating"
+                      @change="checkForDiscrepancy(index)"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">Select Quality</option>
+                      <option value="excellent">Excellent</option>
+                      <option value="good">Good</option>
+                      <option value="fair">Fair</option>
+                      <option value="poor">Poor</option>
+                    </select>
+                    <Badge v-if="receiveItems[index].quality_rating" :variant="getQualityBadge(receiveItems[index].quality_rating).variant" class="text-xs">
+                      {{ receiveItems[index].quality_rating.charAt(0).toUpperCase() + receiveItems[index].quality_rating.slice(1) }}
                     </Badge>
-                  </TableCell>
-                  <TableCell>
+                  </div>
+
+                  <div class="space-y-2">
+                    <Label>Condition Notes</Label>
+                    <Input
+                      v-model="receiveItems[index].condition_notes"
+                      type="text"
+                      placeholder="e.g., Fresh, slightly damaged"
+                    />
+                  </div>
+
+                  <div class="flex flex-col space-y-2">
+                    <Label>Actions</Label>
                     <div class="flex space-x-1">
                       <Button 
                         type="button" 
@@ -266,10 +356,25 @@ const submit = () => {
                         Clear
                       </Button>
                     </div>
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+                  </div>
+                </div>
+
+                <!-- Discrepancy Section -->
+                <div v-if="receiveItems[index].has_discrepancy" class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <div class="flex items-center space-x-2 mb-2">
+                    <Badge variant="warning">Discrepancy Detected</Badge>
+                    <span class="text-sm font-medium text-yellow-800">Please provide reason</span>
+                  </div>
+                  <textarea
+                    v-model="receiveItems[index].discrepancy_reason"
+                    rows="2"
+                    class="w-full px-3 py-2 border border-yellow-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    placeholder="Explain the discrepancy (quantity difference, quality issues, etc.)"
+                    required
+                  ></textarea>
+                </div>
+              </div>
+            </div>
             
             <div v-if="form.errors.items" class="text-sm text-red-600 mt-4">
               {{ form.errors.items }}

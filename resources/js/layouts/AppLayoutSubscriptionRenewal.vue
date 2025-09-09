@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import AppLayotSuscriptionRenewal from '@/layouts/app/AppSideBarLayoutSubscriptionRenewal.vue';
+import AppLayoutSubscriptionRenewal from '@/layouts/app/AppSideBarLayoutSubscriptionRenewal.vue';
 import type { BreadcrumbItemType } from '@/types';
 
 interface Props {
@@ -12,7 +12,7 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <template>
-    <AppLayotSuscriptionRenewal :breadcrumbs="breadcrumbs">
+    <AppLayoutSubscriptionRenewal :breadcrumbs="breadcrumbs">
         <slot />
-    </AppLayotSuscriptionRenewal>
+    </AppLayoutSubscriptionRenewal>
 </template>

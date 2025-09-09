@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+// Removed Select components as restaurant selection is no longer needed
 
 interface Restaurant {
   id: number;
@@ -14,13 +14,12 @@ interface Restaurant {
 }
 
 interface Props {
-  restaurants: Restaurant[];
+  restaurant: Restaurant;
 }
 
 defineProps<Props>();
 
 const form = useForm({
-  restaurant_id: null as number | null,
   ingredient_name: '',
   base_unit: '',
   package_unit: '',
@@ -57,29 +56,16 @@ const submit = () => {
         </CardHeader>
         <CardContent>
           <form @submit.prevent="submit" class="space-y-6">
-            <!-- Restaurant Selection -->
+            <!-- Restaurant Information (Read-only) -->
             <div class="space-y-2">
-              <Label for="restaurant">Restaurant *</Label>
-              <Select v-model="form.restaurant_id" required>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a restaurant to offer ingredient to" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem 
-                    v-for="restaurant in restaurants" 
-                    :key="restaurant.id"
-                    :value="restaurant.id"
-                  >
-                    <div>
-                      <div class="font-medium">{{ restaurant.restaurant_name }}</div>
-                      <div class="text-sm text-muted-foreground">{{ restaurant.address }}</div>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <div v-if="form.errors.restaurant_id" class="text-sm text-red-600">
-                {{ form.errors.restaurant_id }}
+              <Label>Offering to Restaurant</Label>
+              <div class="p-3 bg-muted/50 rounded-md border">
+                <div class="font-medium text-foreground">{{ restaurant.restaurant_name }}</div>
+                <div class="text-sm text-muted-foreground">{{ restaurant.address }}</div>
               </div>
+              <p class="text-xs text-muted-foreground">
+                You can only offer ingredients to the restaurant that invited you to the system.
+              </p>
             </div>
 
             <!-- Custom Ingredient Details -->
@@ -193,7 +179,7 @@ const submit = () => {
             <div class="flex space-x-4">
               <Button 
                 type="submit" 
-                :disabled="form.processing || !form.restaurant_id || !form.ingredient_name || !form.base_unit"
+                :disabled="form.processing || !form.ingredient_name || !form.base_unit"
               >
                 {{ form.processing ? 'Adding...' : 'Add Ingredient Offer' }}
               </Button>

@@ -9,34 +9,52 @@ defineProps<{
 </script>
 
 <template>
-    <!-- Home Button -->
-    <div class="p-4">
-    <Link :href="route('home')" class="inline-flex items-center">
-        <ArrowLeft class="w-6 h-6 text-gray-700 hover:text-gray-900 transition" />
-    </Link>
-    </div>
-   <div class="flex min-h-svh flex-col items-center justify-center gap-6 bg-background p-6 md:p-10">
-        <div class="w-full max-w-[440px]">
-            <div class="flex flex-col gap-8">
-            <div class="flex flex-col items-center gap-4">
-                <Link :href="route('home')" class="flex flex-col items-center gap-2 font-medium">
-                <!-- <div class="mb-1 flex h-9 w-9 items-center justify-center rounded-md">
-                    <AppLogoIcon class="size-9 fill-current text-[var(--foreground)] dark:text-white" />
-                </div> -->
-                <span class="sr-only">{{ title }}</span>
+    <div class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <!-- Fonts -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kaushan+Script&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
+        
+        <!-- Background Pattern -->
+        <div class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]"></div>
+        
+        <!-- Header with back button and logo -->
+        <header class="relative z-10 px-6 py-6">
+            <div class="max-w-4xl mx-auto flex items-center justify-between">
+                <Link :href="route('home')" class="inline-flex items-center text-white/70 hover:text-white transition-colors">
+                    <ArrowLeft class="w-5 h-5 mr-2" />
+                    <span class="text-sm font-medium">Back to Home</span>
                 </Link>
-                <div class="space-y-2 text-center">
-                <h1 class="text-xl font-medium">{{ title }}</h1>
-                <p class="text-center text-sm text-muted-foreground">{{ description }}</p>
+                
+                <Link :href="route('home')" class="text-3xl font-bold text-orange-500" style="font-family: 'Kaushan Script', cursive;">
+                    ServeWise
+                </Link>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] p-6">
+            <div class="w-full max-w-md">
+                <!-- Header Text -->
+                <div class="text-center mb-8">
+                    <h1 class="text-3xl font-bold text-white mb-3" style="font-family: 'Playfair Display', serif;">
+                        {{ title }}
+                    </h1>
+                    <p class="text-gray-300 text-lg font-light">
+                        {{ description }}
+                    </p>
+                </div>
+
+                <!-- Form Container -->
+                <div class="bg-white/95 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-white/20">
+                    <slot />
+                </div>
+
+                <!-- Footer Text -->
+                <div class="text-center mt-6 text-gray-400 text-sm">
+                    Manage your restaurant smarter with ServeWise
                 </div>
             </div>
-
-            <!-- White background wrapper -->
-            <div class="bg-white p-6 rounded-2xl shadow-md">
-                <slot />
-            </div>
-            </div>
         </div>
-        </div>
-
+    </div>
 </template>

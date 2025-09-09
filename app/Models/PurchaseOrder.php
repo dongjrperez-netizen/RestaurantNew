@@ -26,6 +26,9 @@ class PurchaseOrder extends Model
         'total_amount',
         'notes',
         'delivery_instructions',
+        'delivery_condition',
+        'received_by',
+        'receiving_notes',
         'created_by_user_id',
         'approved_by_user_id',
         'approved_at'

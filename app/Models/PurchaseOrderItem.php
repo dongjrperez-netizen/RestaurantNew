@@ -19,14 +19,19 @@ class PurchaseOrderItem extends Model
         'unit_price',
         'total_price',
         'unit_of_measure',
-        'notes'
+        'notes',
+        'quality_rating',
+        'condition_notes',
+        'has_discrepancy',
+        'discrepancy_reason'
     ];
 
     protected $casts = [
         'ordered_quantity' => 'decimal:2',
         'received_quantity' => 'decimal:2',
         'unit_price' => 'decimal:2',
-        'total_price' => 'decimal:2'
+        'total_price' => 'decimal:2',
+        'has_discrepancy' => 'boolean'
     ];
 
     public function purchaseOrder()

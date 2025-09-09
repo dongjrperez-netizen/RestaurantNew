@@ -39,30 +39,28 @@ const submit = () => {
 </script>
 
 <template>
-    <AuthBase title="Log in to your account" description="Enter your email and password below to log in">
+    <AuthBase title="Welcome Back" description="Sign in to manage your restaurant with ServeWise">
 
-        <Head title="Log in" />
+        <Head title="Sign In - ServeWise" />
 
         <!-- Status message (for password reset, etc) -->
-        <div v-if="status" class="mb-4 text-center text-sm font-medium text-green-600">
-            {{ status }}
-        </div>
-
-        <!-- Login error message -->
-        <div v-if="loginError" class="mb-4 rounded-md bg-red-50 p-4">
-            <div class="flex">
-                <div class="ml-3">
-                    <h3 class="text-sm font-medium text-red-800">
-                        {{ loginError }}
-                    </h3>
-                </div>
+        <div v-if="status" class="mb-6 p-4 rounded-lg bg-green-50 border border-green-200">
+            <div class="text-center text-sm font-medium text-green-700">
+                {{ status }}
             </div>
         </div>
 
-        <form @submit.prevent="submit" class="flex flex-col gap-6">
-            <div class="grid gap-6">
-                <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
+        <!-- Login error message -->
+        <div v-if="loginError" class="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+            <div class="text-center text-sm font-medium text-red-700">
+                {{ loginError }}
+            </div>
+        </div>
+
+        <form @submit.prevent="submit" class="space-y-6">
+            <div class="space-y-4">
+                <div class="space-y-2">
+                    <Label for="email" class="text-gray-700 font-medium">Email Address</Label>
                     <Input
                         id="email"
                         type="email"
@@ -71,15 +69,21 @@ const submit = () => {
                         :tabindex="1"
                         autocomplete="email"
                         v-model="form.email"
-                        placeholder="email@example.com"
+                        placeholder="Enter your email address"
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                     />
                     <InputError :message="form.errors.email" />
                 </div>
 
-                <div class="grid gap-2">
+                <div class="space-y-2">
                     <div class="flex items-center justify-between">
-                        <Label for="password">Password</Label>
-                        <TextLink v-if="canResetPassword" :href="route('password.request')" class="text-sm" :tabindex="5">
+                        <Label for="password" class="text-gray-700 font-medium">Password</Label>
+                        <TextLink 
+                            v-if="canResetPassword" 
+                            :href="route('password.request')" 
+                            class="text-sm text-orange-500 hover:text-orange-600 font-medium" 
+                            :tabindex="5"
+                        >
                             Forgot password?
                         </TextLink>
                     </div>
@@ -90,27 +94,60 @@ const submit = () => {
                         :tabindex="2"
                         autocomplete="current-password"
                         v-model="form.password"
-                        placeholder="Password"
+                        placeholder="Enter your password"
+                        class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                     />
                     <InputError :message="form.errors.password" />
                 </div>
 
-                <div class="flex items-center justify-between">
-                    <Label for="remember" class="flex items-center space-x-3">
-                        <Checkbox id="remember" v-model="form.remember" :tabindex="3" />
-                        <span>Remember me</span>
+                <div class="flex items-center justify-between pt-2">
+                    <Label for="remember" class="flex items-center space-x-3 cursor-pointer">
+                        <Checkbox 
+                            id="remember" 
+                            v-model="form.remember" 
+                            :tabindex="3" 
+                            class="text-orange-500 focus:ring-orange-500"
+                        />
+                        <span class="text-sm text-gray-600">Remember me for 30 days</span>
                     </Label>
                 </div>
-
-                <Button type="submit" class="mt-4 w-full" :tabindex="4" :disabled="form.processing">
-                    <LoaderCircle v-if="form.processing" class="h-4 w-4 animate-spin" />
-                    Log in
-                </Button>
             </div>
 
-            <div class="text-center text-sm text-muted-foreground">
-                Don't have an account?
-                <TextLink :href="route('register')" :tabindex="5">Sign up</TextLink>
+            <Button 
+                type="submit" 
+                class="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2" 
+                :tabindex="4" 
+                :disabled="form.processing"
+            >
+                <LoaderCircle v-if="form.processing" class="h-5 w-5 animate-spin mr-2" />
+                {{ form.processing ? 'Signing in...' : 'Sign In' }}
+            </Button>
+
+            <!-- Divider -->
+            <div class="relative flex items-center justify-center py-4">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-gray-200"></div>
+                </div>
+                <div class="relative bg-white px-4 text-sm text-gray-500">
+                    New to ServeWise?
+                </div>
+            </div>
+
+            <!-- Sign up link -->
+            <div class="text-center">
+                <TextLink 
+                    :href="route('register')" 
+                    :tabindex="5"
+                    class="w-full inline-flex justify-center items-center px-4 py-3 border border-orange-500 text-orange-500 font-semibold rounded-lg hover:bg-orange-50 transition-colors"
+                >
+                    Create your account
+                </TextLink>
+            </div>
+
+            <!-- Additional help -->
+            <div class="text-center text-xs text-gray-500 pt-4">
+                Having trouble signing in? 
+                <a href="#" class="text-orange-500 hover:text-orange-600">Contact support</a>
             </div>
         </form>
     </AuthBase>
