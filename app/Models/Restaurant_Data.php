@@ -26,4 +26,22 @@ class Restaurant_Data extends Model
     {
         return $this->hasMany(Document::class, 'restaurant_id');
     }
+
+    // Define the relationship with Ingredients
+    public function ingredients()
+    {
+        return $this->hasMany(Ingredients::class, 'restaurant_id');
+    }
+
+    // Define the relationship with Dishes
+    public function dishes()
+    {
+        return $this->hasMany(Dish::class, 'restaurant_id');
+    }
+
+    // Define the relationship with Purchase Orders
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class, 'restaurant_id');
+    }
 }

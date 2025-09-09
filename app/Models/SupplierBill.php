@@ -85,4 +85,69 @@ class SupplierBill extends Model
     {
         return $this->due_date < now() && $this->outstanding_amount > 0;
     }
+
+    public function getPaymentProgressAttribute()
+    {
+        if ($this->total_amount <= 0) return 0;
+        return ($this->paid_amount / $this->total_amount) * 100;
+    }
+
+    public function getFormattedStatusAttribute()
+    {
+        return match($this->status) {
+            'pending' => 'Pending',
+            'partially_paid' => 'Partially Paid',
+            'paid' => 'Paid',
+            'overdue' => 'Overdue',
+            'cancelled' => 'Cancelled',
+            default => ucfirst($this->status)
+        };
+    }
+
+    public function canBeEdited()
+    {
+        return !in_array($this->status, ['paid', 'cancelled']);
+    }
+
+    public function canReceivePayment()
+    {
+        return $this->outstanding_amount > 0 && !in_array($this->status, ['cancelled']);
+    }
+
+    public function markAsPaid()
+    {
+        $this->update([
+            'paid_amount' => $this->total_amount,
+            'outstanding_amount' => 0,
+            'status' => 'paid'
+        ]);
+    }
+
+    public function calculateLateFee($feePercentage = 2)
+    {
+        if (!$this->is_overdue) return 0;
+        
+        $daysOverdue = $this->days_overdue;
+        if ($daysOverdue <= 0) return 0;
+        
+        return ($this->outstanding_amount * $feePercentage / 100) * ($daysOverdue / 30);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeOverdue($query)
+    {
+        return $query->where('due_date', '<', now())
+                    ->where('outstanding_amount', '>', 0)
+                    ->whereNotIn('status', ['paid', 'cancelled']);
+    }
+
+    public function scopeUnpaid($query)
+    {
+        return $query->where('outstanding_amount', '>', 0)
+                    ->whereNotIn('status', ['cancelled']);
+    }
 }

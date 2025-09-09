@@ -117,7 +117,7 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
 });
 
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
-    Route::get('/account/update', [AccountUpdateController::class, 'show'])->name('account.update');
+    Route::get('/account/update', [AccountUpdateController::class, 'show'])->name('account.update.show');
     Route::post('/account/update', [AccountUpdateController::class, 'update'])->name('account.update');
     Route::get('/api/account/user', [AccountUpdateController::class, 'fetchUser']);
 });
@@ -168,3 +168,5 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
+require __DIR__.'/inventory.php';
+require __DIR__.'/billing.php';

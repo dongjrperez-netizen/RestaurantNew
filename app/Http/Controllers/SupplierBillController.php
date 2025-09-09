@@ -5,13 +5,22 @@ namespace App\Http\Controllers;
 use App\Models\SupplierBill;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
 class SupplierBillController extends Controller
 {
+    private BillingService $billingService;
+
+    public function __construct(BillingService $billingService)
+    {
+        $this->billingService = $billingService;
+    }
+
     public function index()
     {
         $restaurantId = auth()->user()->restaurantData->id;
@@ -263,5 +272,231 @@ class SupplierBillController extends Controller
         }
 
         return Storage::disk('public')->download($bill->attachment_path);
+    }
+
+    /**
+     * Auto-generate bill from purchase order using BillingService
+     */
+    public function autoGenerateFromPurchaseOrder(Request $request)
+    {
+        $validated = $request->validate([
+            'purchase_order_id' => 'required|exists:purchase_orders,purchase_order_id',
+            'supplier_invoice_number' => 'nullable|string|max:255',
+            'bill_date' => 'nullable|date',
+            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string|max:1000'
+        ]);
+
+        try {
+            $result = $this->billingService->generateBillFromPurchaseOrder(
+                $validated['purchase_order_id'],
+                array_filter($validated)
+            );
+
+            return redirect()->route('bills.show', $result['bill']->bill_id)
+                ->with('success', $result['message']);
+
+        } catch (\Exception $e) {
+            Log::error('Auto-generate bill failed', [
+                'purchase_order_id' => $validated['purchase_order_id'],
+                'error' => $e->getMessage()
+            ]);
+
+            return redirect()->back()
+                ->with('error', 'Failed to generate bill: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process complete workflow: Receive inventory + Generate bill
+     */
+    public function processReceived(Request $request)
+    {
+        $validated = $request->validate([
+            'purchase_order_id' => 'required|exists:purchase_orders,purchase_order_id',
+            'supplier_invoice_number' => 'nullable|string|max:255',
+            'bill_date' => 'nullable|date',
+            'tax_rate' => 'nullable|numeric|min:0|max:100',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'notes' => 'nullable|string|max:1000'
+        ]);
+
+        try {
+            $result = $this->billingService->processReceivedPurchaseOrder(
+                $validated['purchase_order_id'],
+                array_filter($validated)
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'],
+                'data' => [
+                    'inventory_result' => $result['inventory_result'],
+                    'bill' => $result['bill_result']['bill'],
+                    'redirect_url' => route('bills.show', $result['bill_result']['bill']->bill_id)
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Process received purchase order failed', [
+                'purchase_order_id' => $validated['purchase_order_id'],
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate bills in bulk for multiple purchase orders
+     */
+    public function bulkGenerate(Request $request)
+    {
+        $validated = $request->validate([
+            'purchase_order_ids' => 'required|array|min:1',
+            'purchase_order_ids.*' => 'exists:purchase_orders,purchase_order_id',
+            'global_options' => 'nullable|array',
+            'global_options.tax_rate' => 'nullable|numeric|min:0|max:100',
+            'global_options.notes' => 'nullable|string|max:1000'
+        ]);
+
+        try {
+            $result = $this->billingService->generateBulkBills(
+                $validated['purchase_order_ids'],
+                $validated['global_options'] ?? []
+            );
+
+            $message = $result['success'] 
+                ? "Successfully generated {$result['success_count']} bills"
+                : "Generated {$result['success_count']} bills with {$result['error_count']} errors";
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Bulk bill generation failed', [
+                'purchase_order_ids' => $validated['purchase_order_ids'],
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Bulk generation failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get billing analytics and dashboard data
+     */
+    public function analytics(Request $request)
+    {
+        $validated = $request->validate([
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date|after_or_equal:date_from'
+        ]);
+
+        try {
+            $restaurantId = auth()->user()->restaurantData->id;
+            $analytics = $this->billingService->getBillingAnalytics($restaurantId, $validated);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => $analytics
+                ]);
+            }
+
+            return Inertia::render('Bills/Analytics', [
+                'analytics' => $analytics
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Billing analytics failed', ['error' => $e->getMessage()]);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to load analytics: ' . $e->getMessage()
+                ], 500);
+            }
+
+            return redirect()->back()->with('error', 'Failed to load analytics');
+        }
+    }
+
+    /**
+     * Auto-mark overdue bills (can be run via cron)
+     */
+    public function autoMarkOverdue()
+    {
+        try {
+            $restaurantId = auth()->user()->restaurantData->id ?? null;
+            $result = $this->billingService->markOverdueBills($restaurantId);
+
+            return response()->json([
+                'success' => true,
+                'message' => "Marked {$result['marked_count']} bills as overdue",
+                'data' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Auto-mark overdue failed', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark overdue bills: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Quick payment recording
+     */
+    public function quickPayment(Request $request, $billId)
+    {
+        $validated = $request->validate([
+            'payment_amount' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|in:cash,bank_transfer,check,credit_card,online,other',
+            'payment_date' => 'nullable|date',
+            'transaction_reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
+        try {
+            $paymentData = array_merge($validated, [
+                'payment_date' => $validated['payment_date'] ?? now(),
+                'created_by_user_id' => auth()->id()
+            ]);
+
+            $result = $this->billingService->recordPayment($billId, $paymentData);
+
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'],
+                'data' => [
+                    'payment' => $result['payment'],
+                    'bill' => $result['bill']
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Quick payment failed', [
+                'bill_id' => $billId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -43,4 +43,18 @@ class PurchaseOrderItem extends Model
     {
         return $this->belongsTo(Ingredients::class, 'ingredient_id', 'ingredient_id');
     }
+
+    public function getBaseUnitsReceived()
+    {
+        $ingredient = $this->ingredient;
+        $supplier = $this->purchaseOrder->supplier;
+        
+        $packageQuantity = $ingredient->getPackageQuantityForSupplier($supplier->supplier_id);
+        
+        if (!$packageQuantity) {
+            throw new \Exception("Package quantity not found for ingredient {$ingredient->ingredient_name} from supplier {$supplier->name}");
+        }
+        
+        return $this->received_quantity * $packageQuantity;
+    }
 }

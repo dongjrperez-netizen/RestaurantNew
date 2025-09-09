@@ -60,4 +60,49 @@ class SupplierPayment extends Model
             }
         });
     }
+
+    public function getFormattedStatusAttribute()
+    {
+        return match($this->status) {
+            'completed' => 'Completed',
+            'pending' => 'Pending',
+            'cancelled' => 'Cancelled',
+            'refunded' => 'Refunded',
+            default => ucfirst($this->status)
+        };
+    }
+
+    public function getFormattedMethodAttribute()
+    {
+        return match($this->payment_method) {
+            'cash' => 'Cash',
+            'bank_transfer' => 'Bank Transfer',
+            'check' => 'Check',
+            'credit_card' => 'Credit Card',
+            'online' => 'Online Payment',
+            'other' => 'Other',
+            default => ucfirst(str_replace('_', ' ', $this->payment_method))
+        };
+    }
+
+    public function canBeCancelled()
+    {
+        return $this->status !== 'cancelled' && $this->status !== 'refunded';
+    }
+
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', 'completed');
+    }
+
+    public function scopeThisMonth($query)
+    {
+        return $query->whereYear('payment_date', now()->year)
+                    ->whereMonth('payment_date', now()->month);
+    }
+
+    public function scopeByMethod($query, $method)
+    {
+        return $query->where('payment_method', $method);
+    }
 }

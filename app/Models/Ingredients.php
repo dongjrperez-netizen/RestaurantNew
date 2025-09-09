@@ -40,4 +40,35 @@ class Ingredients extends Model
     {
         return $this->belongsTo(Restaurant_Data::class, 'restaurant_id');
     }
+
+    public function dishes()
+    {
+        return $this->belongsToMany(Dish::class, 'dish_ingredients', 'ingredient_id', 'dish_id')
+            ->withPivot(['quantity_needed', 'unit_of_measure'])
+            ->withTimestamps();
+    }
+
+    public function dishIngredients()
+    {
+        return $this->hasMany(DishIngredient::class, 'ingredient_id', 'ingredient_id');
+    }
+
+    public function getPackageQuantityForSupplier($supplierId)
+    {
+        $pivot = $this->suppliers()->where('supplier_id', $supplierId)->first();
+        return $pivot ? $pivot->pivot->package_quantity : null;
+    }
+
+    public function increaseStock($quantity)
+    {
+        $this->increment('current_stock', $quantity);
+    }
+
+    public function decreaseStock($quantity)
+    {
+        if ($this->current_stock < $quantity) {
+            throw new \Exception("Insufficient stock for ingredient: {$this->ingredient_name}. Current: {$this->current_stock}, Required: {$quantity}");
+        }
+        $this->decrement('current_stock', $quantity);
+    }
 }

@@ -10,6 +10,7 @@ use App\Models\IngredientSupplier;
 use App\Models\User;
 use App\Notifications\PurchaseOrderSubmitted;
 use App\Notifications\PurchaseOrderApproved;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -17,6 +18,13 @@ use Inertia\Inertia;
 
 class PurchaseOrderController extends Controller
 {
+    protected BillingService $billingService;
+
+    public function __construct(BillingService $billingService)
+    {
+        $this->billingService = $billingService;
+    }
+
     public function index()
     {
         $user = auth()->user();
@@ -434,10 +442,33 @@ class PurchaseOrderController extends Controller
                 'receiving_notes' => $validated['general_notes']
             ]);
 
+            // 🚀 AUTO-GENERATE BILL when PO is fully delivered
+            $billMessage = '';
+            if ($newStatus === 'delivered') {
+                try {
+                    $billResult = $this->billingService->generateBillFromPurchaseOrder(
+                        $purchaseOrder->purchase_order_id,
+                        [
+                            'bill_date' => $validated['actual_delivery_date'],
+                            'auto_calculate_due_date' => true,
+                            'notes' => 'Auto-generated from delivered purchase order'
+                        ]
+                    );
+                    
+                    if ($billResult['success']) {
+                        $billMessage = " Bill {$billResult['bill_number']} has been automatically generated.";
+                        \Log::info("Auto-generated bill {$billResult['bill_number']} for PO {$purchaseOrder->po_number}");
+                    }
+                } catch (\Exception $billException) {
+                    \Log::error("Failed to auto-generate bill for PO {$purchaseOrder->po_number}: " . $billException->getMessage());
+                    $billMessage = " Note: Bill generation failed, please create manually.";
+                }
+            }
+
             DB::commit();
 
             return redirect()->route('purchase-orders.show', $purchaseOrder->purchase_order_id)
-                ->with('success', 'Delivery received and stock updated successfully.');
+                ->with('success', 'Delivery received and stock updated successfully.' . $billMessage);
 
         } catch (\Exception $e) {
             DB::rollback();

@@ -11,14 +11,26 @@ class SuppliersSeeder extends Seeder
     {
         DB::table('suppliers')->insert([
             [
-                'SupplierName' => 'Fresh Farms',
-                'ContactNumber' => '09180000001',
-                'Address' => 'Quezon City'
+                'restaurant_id' => 1,
+                'supplier_name' => 'Fresh Farms',
+                'contact_number' => '09180000001',
+                'address' => 'Quezon City',
+                'email' => 'contact@freshfarms.com',
+                'password' => bcrypt('password'),
+                'credit_limit' => 10000.00,
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'SupplierName' => 'Golden Foods Distributor',
-                'ContactNumber' => '09180000002',
-                'Address' => 'Makati'
+                'restaurant_id' => 1,
+                'supplier_name' => 'Golden Foods Distributor',
+                'contact_number' => '09180000002',
+                'address' => 'Makati',
+                'email' => 'info@goldenfoods.com',
+                'password' => bcrypt('password'),
+                'credit_limit' => 15000.00,
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
         ]);
     }
