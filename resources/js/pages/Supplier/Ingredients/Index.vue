@@ -22,6 +22,8 @@ interface IngredientOffer {
   pivot: {
     package_unit: string;
     package_quantity: number;
+    package_contents_quantity: number;
+    package_contents_unit: string;
     package_price: number;
     lead_time_days: number;
     minimum_order_quantity: number;
@@ -120,7 +122,12 @@ const deleteOffer = (ingredientId: number) => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {{ ingredient.pivot.package_quantity }} {{ ingredient.pivot.package_unit }}
+                    <div>
+                      <div class="font-medium">{{ ingredient.pivot.package_quantity }} {{ ingredient.pivot.package_unit }}</div>
+                      <div class="text-sm text-muted-foreground">
+                        Contains: {{ ingredient.pivot.package_contents_quantity }} {{ ingredient.pivot.package_contents_unit }}
+                      </div>
+                    </div>
                   </TableCell>
                   <TableCell>
                     {{ formatCurrency(ingredient.pivot.package_price) }}

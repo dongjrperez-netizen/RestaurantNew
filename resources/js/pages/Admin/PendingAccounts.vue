@@ -28,7 +28,6 @@ const props = defineProps({
     restaurant_name: string;
     user_name: string;
     contact_email: string;
-    contact_phone: string;
     status: string;
     documents: Array<{
       id: number;
@@ -44,7 +43,6 @@ const props = defineProps({
     restaurant_name: string;
     user_name: string;
     contact_email: string;
-    contact_phone: string;
     status: string;
     documents: Array<{
       id: number;
@@ -105,7 +103,6 @@ const displayedApplications = computed(() => {
             <TableRow>
               <TableHead>User Name</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
               <TableHead>Restaurant</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Documents</TableHead>
@@ -121,7 +118,6 @@ const displayedApplications = computed(() => {
             >
               <TableCell>{{ application.user_name }}</TableCell>
               <TableCell>{{ application.contact_email }}</TableCell>
-              <TableCell>{{ application.contact_phone }}</TableCell>
               <TableCell>{{ application.restaurant_name }}</TableCell>
               <TableCell>
                 <span 
@@ -174,7 +170,7 @@ const displayedApplications = computed(() => {
               </TableCell>
             </TableRow>
             <TableRow v-if="displayedApplications.length === 0">
-              <TableCell colspan="7" class="text-center py-4 text-gray-500">
+              <TableCell colspan="6" class="text-center py-4 text-gray-500">
                 No applications found.
               </TableCell>
             </TableRow>

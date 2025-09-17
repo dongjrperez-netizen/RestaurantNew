@@ -21,9 +21,10 @@ defineProps<Props>();
 
 const form = useForm({
   ingredient_name: '',
-  base_unit: '',
   package_unit: '',
   package_quantity: 1,
+  package_contents_quantity: 1,
+  package_contents_unit: '',
   package_price: 0,
   lead_time_days: 0,
   minimum_order_quantity: 1,
@@ -69,31 +70,16 @@ const submit = () => {
             </div>
 
             <!-- Custom Ingredient Details -->
-            <div class="grid gap-4 md:grid-cols-2">
-              <div class="space-y-2">
-                <Label for="ingredient_name">Ingredient Name *</Label>
-                <Input
-                  id="ingredient_name"
-                  v-model="form.ingredient_name"
-                  placeholder="e.g., Fresh Tomatoes, Olive Oil, etc."
-                  required
-                />
-                <div v-if="form.errors.ingredient_name" class="text-sm text-red-600">
-                  {{ form.errors.ingredient_name }}
-                </div>
-              </div>
-
-              <div class="space-y-2">
-                <Label for="base_unit">Base Unit *</Label>
-                <Input
-                  id="base_unit"
-                  v-model="form.base_unit"
-                  placeholder="kg, lbs, pcs, liters, etc."
-                  required
-                />
-                <div v-if="form.errors.base_unit" class="text-sm text-red-600">
-                  {{ form.errors.base_unit }}
-                </div>
+            <div class="space-y-2">
+              <Label for="ingredient_name">Ingredient Name *</Label>
+              <Input
+                id="ingredient_name"
+                v-model="form.ingredient_name"
+                placeholder="e.g., Fresh Tomatoes, Olive Oil, etc."
+                required
+              />
+              <div v-if="form.errors.ingredient_name" class="text-sm text-red-600">
+                {{ form.errors.ingredient_name }}
               </div>
             </div>
 
@@ -119,12 +105,55 @@ const submit = () => {
                 <Input
                   id="package_unit"
                   v-model="form.package_unit"
-                  placeholder="kg, lbs, pcs, etc."
+                  placeholder="box, bag, sack, etc."
                   required
                 />
                 <div v-if="form.errors.package_unit" class="text-sm text-red-600">
                   {{ form.errors.package_unit }}
                 </div>
+              </div>
+            </div>
+
+            <!-- Package Contents Details -->
+            <div class="border-t pt-4">
+              <h3 class="text-lg font-medium mb-3">Package Contents & Base Unit</h3>
+              <p class="text-sm text-muted-foreground mb-4">Specify what's inside each package (this will also be used as the ingredient's base unit for inventory tracking)</p>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <Label for="package_contents_quantity">Contents Quantity *</Label>
+                  <Input
+                    id="package_contents_quantity"
+                    v-model.number="form.package_contents_quantity"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="e.g., 50"
+                    required
+                  />
+                  <div v-if="form.errors.package_contents_quantity" class="text-sm text-red-600">
+                    {{ form.errors.package_contents_quantity }}
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <Label for="package_contents_unit">Contents Unit *</Label>
+                  <Input
+                    id="package_contents_unit"
+                    v-model="form.package_contents_unit"
+                    placeholder="pcs, kg, lbs, liters, etc."
+                    required
+                  />
+                  <div v-if="form.errors.package_contents_unit" class="text-sm text-red-600">
+                    {{ form.errors.package_contents_unit }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3 p-3 bg-blue-50 rounded-md">
+                <p class="text-sm text-blue-800">
+                  <strong>Example:</strong> 1 box contains 50 pcs of tomatoes
+                </p>
               </div>
             </div>
 
@@ -177,9 +206,9 @@ const submit = () => {
 
             <!-- Actions -->
             <div class="flex space-x-4">
-              <Button 
-                type="submit" 
-                :disabled="form.processing || !form.ingredient_name || !form.base_unit"
+              <Button
+                type="submit"
+                :disabled="form.processing || !form.ingredient_name || !form.package_contents_unit"
               >
                 {{ form.processing ? 'Adding...' : 'Add Ingredient Offer' }}
               </Button>

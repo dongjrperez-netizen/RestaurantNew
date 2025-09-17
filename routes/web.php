@@ -20,6 +20,8 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupplierPaymentController;
 use App\Http\Controllers\SuppliersController;
 use App\Http\Controllers\UsersubscriptionController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -71,6 +73,103 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
 Route::get('/register/documents', [RegisteredUserController::class, 'showDocumentUpload'])->middleware('auth')->name('register.documents');
 Route::post('/register/documents', [RegisteredUserController::class, 'store_doc'])->middleware('auth')->name('register.documents.store');
 
+// Debug routes for registration testing
+Route::get('/debug/registration', function () {
+    return response()->json([
+        'environment' => app()->environment(),
+        'debug_mode' => config('app.debug'),
+        'database_connection' => DB::connection()->getPdo() ? 'Connected' : 'Failed',
+        'session_driver' => config('session.driver'),
+        'auth_user' => Auth::user() ? [
+            'id' => Auth::user()->id,
+            'email' => Auth::user()->email,
+            'restaurant_data' => Auth::user()->restaurantData,
+        ] : null,
+        'routes' => [
+            'register' => route('register'),
+            'register_documents' => route('register.documents'),
+            'login' => route('login'),
+        ],
+        'latest_users' => DB::table('users')->latest()->limit(3)->get(),
+        'latest_restaurants' => DB::table('restaurant_data')->latest()->limit(3)->get(),
+    ]);
+})->name('debug.registration');
+
+// Test registration with sample data
+Route::get('/debug/test-registration', function () {
+    $testData = [
+        'first_name' => 'Test',
+        'middle_name' => 'User',
+        'last_name' => 'Demo',
+        'date_of_birth' => '1990-01-01',
+        'gender' => 'Male',
+        'email' => 'test'.time().'@example.com',
+        'password' => 'password123',
+        'password_confirmation' => 'password123',
+        'restaurant_name' => 'Test Restaurant '.time(),
+        'address' => '123 Test Street, Test City, Test Country',
+        'postal_code' => '12345',
+        'contact_number' => '1234567890',
+    ];
+
+    return view('debug.test-registration', compact('testData'));
+})->name('debug.test-registration');
+
+// Debug route to test document page access
+Route::get('/debug/documents', function () {
+    return response()->json([
+        'auth_check' => Auth::check(),
+        'user' => Auth::user() ? [
+            'id' => Auth::user()->id,
+            'email' => Auth::user()->email,
+            'restaurant_data' => Auth::user()->restaurantData,
+        ] : null,
+        'session_data' => [
+            'session_id' => session()->getId(),
+            'registration_success' => session('registration_success'),
+            'all_session' => session()->all(),
+        ],
+        'routes' => [
+            'documents_url' => route('register.documents'),
+            'login_url' => route('login'),
+            'register_url' => route('register'),
+        ],
+        'request_info' => [
+            'url' => request()->url(),
+            'method' => request()->method(),
+            'headers' => request()->headers->all(),
+            'ip' => request()->ip(),
+        ],
+    ]);
+})->name('debug.documents');
+
+// Debug middleware test
+Route::get('/debug/middleware-test', function () {
+    return 'Middleware test passed - you are authenticated';
+})->middleware('auth')->name('debug.middleware-test');
+
+// Test route to simulate registration success and redirect
+Route::get('/debug/test-redirect', function () {
+    $testUser = DB::table('users')->latest()->first();
+
+    if ($testUser) {
+        Auth::loginUsingId($testUser->id);
+
+        return response()->json([
+            'message' => 'User logged in for testing',
+            'user' => $testUser,
+            'auth_check' => Auth::check(),
+            'redirect_url' => route('register.documents'),
+            'can_access_documents' => true,
+        ]);
+    }
+
+    return response()->json([
+        'message' => 'No users found in database',
+        'users_count' => DB::table('users')->count(),
+    ]);
+})->name('debug.test-redirect');
+
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
     Route::get('/product', [ProductController::class, 'index'])->name('product.index');
     Route::post('/product', [ProductController::class, 'store'])->name('product.store');
@@ -79,6 +178,19 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
     Route::get('/kitchen', [KitchenController::class, 'Index'])->name('kitchen.index');
 
+});
+
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::get('/pos/customer-order', function () {
+        return Inertia::render('POS/CustomerOrder');
+    })->name('pos.customer-order');
+});
+
+// Menu Planning Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('menu-plans', \App\Http\Controllers\MenuPlanController::class);
+    Route::post('/menu-plans/{id}/toggle-active', [\App\Http\Controllers\MenuPlanController::class, 'toggleActive'])->name('menu-plans.toggle-active');
+    Route::get('/api/menu-plans/active', [\App\Http\Controllers\MenuPlanController::class, 'getActiveMenuPlan'])->name('menu-plans.active');
 });
 
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
@@ -158,6 +270,17 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::post('/bills/from-purchase-order/{purchaseOrderId}', [SupplierBillController::class, 'createFromPurchaseOrder'])->name('bills.from-purchase-order');
     Route::get('/bills/{id}/download', [SupplierBillController::class, 'downloadAttachment'])->name('bills.download');
     Route::post('/bills/mark-overdue', [SupplierBillController::class, 'markOverdue'])->name('bills.mark-overdue');
+
+    // PayPal Payment Routes
+    Route::post('/bills/{bill}/paypal', [SupplierBillController::class, 'payWithPaypal'])->name('bills.paypal.pay');
+    Route::get('/bills/{bill}/paypal/success', [SupplierBillController::class, 'paypalSuccess'])->name('bills.paypal.success');
+    Route::get('/bills/{bill}/paypal/cancel', [SupplierBillController::class, 'paypalCancel'])->name('bills.paypal.cancel');
+
+    // Quick Payment Route (for Bills/Show page)
+    Route::post('/bills/{bill}/quick-payment', [SupplierBillController::class, 'quickPayment'])->name('bills.quick-payment');
+
+    // PDF Download Route
+    Route::get('/bills/{bill}/pdf', [SupplierBillController::class, 'downloadPdf'])->name('bills.download-pdf');
 });
 
 // Supplier Payments Management Routes

@@ -42,6 +42,7 @@ interface OrderItem {
   unit_price: number;
   unit_of_measure: string;
   notes: string;
+  max_quantity?: number;
   [key: string]: any;
 }
 
@@ -130,13 +131,22 @@ const removeOrderItem = (index: number) => {
 
 const onIngredientSelect = (itemIndex: number, ingredientId: number) => {
   if (!ingredientId) return;
-  
+
   const offering = availableIngredients.value.find(off => off.ingredient.ingredient_id === ingredientId);
   if (offering) {
     orderItems.value[itemIndex].ingredient_id = ingredientId;
     orderItems.value[itemIndex].unit_price = offering.package_price;
     orderItems.value[itemIndex].unit_of_measure = offering.package_unit;
+    // Set max quantity hint for user
+    orderItems.value[itemIndex].max_quantity = offering.minimum_order_quantity;
   }
+};
+
+const getSelectedOffering = (itemIndex: number) => {
+  const item = orderItems.value[itemIndex];
+  if (!item.ingredient_id) return null;
+
+  return availableIngredients.value.find(off => off.ingredient.ingredient_id === item.ingredient_id);
 };
 
 
@@ -325,14 +335,25 @@ const submit = () => {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      <Input
-                        v-model.number="item.ordered_quantity"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="0"
-                        class="w-24"
-                      />
+                      <div class="space-y-1">
+                        <Input
+                          v-model.number="item.ordered_quantity"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          :max="getSelectedOffering(index)?.minimum_order_quantity"
+                          placeholder="0"
+                          class="w-24"
+                          :class="{ 'border-red-500': getSelectedOffering(index) && item.ordered_quantity > getSelectedOffering(index).minimum_order_quantity }"
+                        />
+                        <div v-if="getSelectedOffering(index)" class="text-xs text-muted-foreground">
+                          Max: {{ getSelectedOffering(index).minimum_order_quantity }} {{ getSelectedOffering(index).package_unit }}
+                        </div>
+                        <div v-if="getSelectedOffering(index) && item.ordered_quantity > getSelectedOffering(index).minimum_order_quantity"
+                             class="text-xs text-red-600">
+                          Exceeds maximum order quantity
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Input

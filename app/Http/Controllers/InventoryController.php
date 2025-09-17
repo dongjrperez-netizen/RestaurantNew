@@ -123,25 +123,41 @@ class InventoryController extends Controller
     public function getLowStockIngredients(Request $request): JsonResponse
     {
         try {
-            $restaurantId = $request->query('restaurant_id');
+            $user = auth()->user();
+
+            // Get restaurant ID from the user's restaurant data
+            $restaurantId = $user->restaurantData ? $user->restaurantData->id : null;
+
+            if (! $restaurantId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Restaurant not found for the authenticated user',
+                ], 400);
+            }
 
             $lowStockIngredients = $this->inventoryService->getLowStockIngredients($restaurantId);
 
             return response()->json([
                 'success' => true,
-                'data' => $lowStockIngredients->map(function ($ingredient) {
+                'data' => $lowStockIngredients->map(function ($ingredient) use ($restaurantId) {
+                    // Filter suppliers to only show those belonging to this restaurant
+                    $suppliersData = $ingredient->suppliers->where('restaurant_id', $restaurantId);
+
                     return [
                         'ingredient_id' => $ingredient->ingredient_id,
                         'ingredient_name' => $ingredient->ingredient_name,
                         'current_stock' => $ingredient->current_stock,
+                        'packages' => (float) $ingredient->packages,
                         'reorder_level' => $ingredient->reorder_level,
                         'base_unit' => $ingredient->base_unit,
-                        'suppliers' => $ingredient->suppliers->map(function ($supplier) {
+                        'suppliers' => $suppliersData->map(function ($supplier) {
                             return [
                                 'supplier_id' => $supplier->supplier_id,
-                                'name' => $supplier->name,
+                                'name' => $supplier->supplier_name,
                                 'package_unit' => $supplier->pivot->package_unit,
                                 'package_quantity' => $supplier->pivot->package_quantity,
+                                'package_contents_quantity' => $supplier->pivot->package_contents_quantity,
+                                'package_contents_unit' => $supplier->pivot->package_contents_unit,
                                 'package_price' => $supplier->pivot->package_price,
                                 'lead_time_days' => $supplier->pivot->lead_time_days,
                             ];
@@ -257,13 +273,25 @@ class InventoryController extends Controller
     public function index(Request $request)
     {
         try {
-            $restaurantId = auth()->user()->restaurant_id ?? $request->query('restaurant_id');
+            $user = auth()->user();
 
-            $ingredients = \App\Models\Ingredients::with(['suppliers' => function ($query) {
-                $query->wherePivot('is_active', true);
+            // Get restaurant ID from the user's restaurant data
+            $restaurantId = $user->restaurantData ? $user->restaurantData->id : null;
+
+            if (! $restaurantId) {
+                return back()->withErrors('Restaurant not found for the authenticated user');
+            }
+
+            // Get ingredients that are associated with suppliers belonging to this restaurant
+            $ingredients = \App\Models\Ingredients::with(['suppliers' => function ($query) use ($restaurantId) {
+                // Only load suppliers that belong to this restaurant and are active
+                $query->where('restaurant_id', $restaurantId)
+                    ->wherePivot('is_active', true);
             }])
-                ->when($restaurantId, function ($query, $restaurantId) {
-                    return $query->where('restaurant_id', $restaurantId);
+                ->whereHas('suppliers', function ($query) use ($restaurantId) {
+                    // Only show ingredients that have suppliers belonging to this restaurant
+                    $query->where('restaurant_id', $restaurantId)
+                        ->where('ingredient_suppliers.is_active', true);
                 })
                 ->orderBy('ingredient_name')
                 ->get()
@@ -275,6 +303,7 @@ class InventoryController extends Controller
                         'ingredient_id' => $ingredient->ingredient_id,
                         'ingredient_name' => $ingredient->ingredient_name,
                         'current_stock' => (float) $ingredient->current_stock,
+                        'packages' => (float) $ingredient->packages,
                         'reorder_level' => (float) $ingredient->reorder_level,
                         'base_unit' => $ingredient->base_unit,
                         'supplier_name' => $primarySupplier ? $primarySupplier->supplier_name : 'No supplier',
@@ -283,6 +312,9 @@ class InventoryController extends Controller
                             return [
                                 'supplier_id' => $supplier->supplier_id,
                                 'supplier_name' => $supplier->supplier_name,
+                                'package_unit' => $supplier->pivot->package_unit,
+                                'package_contents_quantity' => (float) $supplier->pivot->package_contents_quantity,
+                                'package_contents_unit' => $supplier->pivot->package_contents_unit,
                             ];
                         }),
                     ];

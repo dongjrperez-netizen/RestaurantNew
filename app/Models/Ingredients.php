@@ -19,6 +19,7 @@ class Ingredients extends Model
         'ingredient_name',
         'base_unit',
         'current_stock',
+        'packages',
         'reorder_level',
     ];
 
@@ -30,7 +31,7 @@ class Ingredients extends Model
     public function suppliers()
     {
         return $this->belongsToMany(Supplier::class, 'ingredient_suppliers', 'ingredient_id', 'supplier_id')
-            ->withPivot(['package_unit', 'package_quantity', 'package_price', 'lead_time_days', 'minimum_order_quantity', 'is_active'])
+            ->withPivot(['package_unit', 'package_quantity', 'package_contents_quantity', 'package_contents_unit', 'package_price', 'lead_time_days', 'minimum_order_quantity', 'is_active'])
             ->withTimestamps();
     }
 
@@ -58,9 +59,9 @@ class Ingredients extends Model
 
     public function getPackageQuantityForSupplier($supplierId)
     {
-        $pivot = $this->suppliers()->where('supplier_id', $supplierId)->first();
+        $pivot = $this->suppliers()->where('suppliers.supplier_id', $supplierId)->first();
 
-        return $pivot ? $pivot->pivot->package_quantity : null;
+        return $pivot ? $pivot->pivot->package_contents_quantity : null;
     }
 
     public function increaseStock($quantity)
@@ -74,5 +75,22 @@ class Ingredients extends Model
             throw new \Exception("Insufficient stock for ingredient: {$this->ingredient_name}. Current: {$this->current_stock}, Required: {$quantity}");
         }
         $this->decrement('current_stock', $quantity);
+    }
+
+    public function addPackages($packageCount, $contentsPerPackage)
+    {
+        $this->increment('packages', $packageCount);
+        $totalUnits = $packageCount * $contentsPerPackage;
+        $this->increment('current_stock', $totalUnits);
+    }
+
+    public function removePackages($packageCount, $contentsPerPackage)
+    {
+        if ($this->packages < $packageCount) {
+            throw new \Exception("Insufficient packages for ingredient: {$this->ingredient_name}. Current: {$this->packages}, Required: {$packageCount}");
+        }
+        $this->decrement('packages', $packageCount);
+        $totalUnits = $packageCount * $contentsPerPackage;
+        $this->decrement('current_stock', $totalUnits);
     }
 }

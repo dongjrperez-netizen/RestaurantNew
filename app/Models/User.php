@@ -41,6 +41,12 @@ class User extends Authenticatable implements MustVerifyEmailContract
         return $this->hasOne(Restaurant_Data::class, 'user_id', 'id');
     }
 
+    // Alias for backward compatibility
+    public function restaurant_data()
+    {
+        return $this->restaurantData();
+    }
+
     // Define the relationship with UserSubscription
     public function subscription()
     {

@@ -49,23 +49,35 @@ class InventoryService
                         continue;
                     }
 
-                    $baseUnitsToAdd = $orderItem->getBaseUnitsReceived();
                     $ingredient = $orderItem->ingredient;
+                    $supplier = $orderItem->purchaseOrder->supplier;
+                    $packagesReceived = $orderItem->received_quantity;
+                    $contentsPerPackage = $ingredient->getPackageQuantityForSupplier($supplier->supplier_id);
+
+                    if (! $contentsPerPackage) {
+                        throw new \Exception("Package quantity not found for ingredient {$ingredient->ingredient_name} from supplier {$supplier->supplier_name}");
+                    }
+
                     $oldStock = $ingredient->current_stock;
+                    $oldPackages = $ingredient->packages;
 
-                    $ingredient->increaseStock($baseUnitsToAdd);
+                    // Use the new addPackages method which updates both packages and current_stock
+                    $ingredient->addPackages($packagesReceived, $contentsPerPackage);
 
-                    Log::info("Stock updated for ingredient {$ingredient->ingredient_name}: {$oldStock} + {$baseUnitsToAdd} = {$ingredient->fresh()->current_stock}");
+                    Log::info("Inventory updated for ingredient {$ingredient->ingredient_name}: Packages: {$oldPackages} + {$packagesReceived} = {$ingredient->fresh()->packages}, Stock: {$oldStock} + ".($packagesReceived * $contentsPerPackage)." = {$ingredient->fresh()->current_stock}");
 
                     $results[] = [
                         'item_id' => $orderItem->purchase_order_item_id,
                         'ingredient_id' => $ingredient->ingredient_id,
                         'ingredient_name' => $ingredient->ingredient_name,
                         'success' => true,
-                        'packages_received' => $orderItem->received_quantity,
-                        'base_units_added' => $baseUnitsToAdd,
+                        'packages_received' => $packagesReceived,
+                        'contents_per_package' => $contentsPerPackage,
+                        'base_units_added' => $packagesReceived * $contentsPerPackage,
                         'old_stock' => $oldStock,
                         'new_stock' => $ingredient->fresh()->current_stock,
+                        'old_packages' => $oldPackages,
+                        'new_packages' => $ingredient->fresh()->packages,
                         'base_unit' => $ingredient->base_unit,
                     ];
 
@@ -229,17 +241,26 @@ class InventoryService
     /**
      * Get ingredients that are at or below their reorder level
      *
+     * @param  int|null  $restaurantId  The restaurant ID to filter by
      * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getLowStockIngredients(?int $restaurantId = null)
     {
         $query = Ingredients::whereRaw('current_stock <= reorder_level')
-            ->with(['suppliers' => function ($query) {
+            ->with(['suppliers' => function ($query) use ($restaurantId) {
+                // Only load suppliers that belong to the restaurant and are active
                 $query->where('is_active', true);
+                if ($restaurantId) {
+                    $query->where('restaurant_id', $restaurantId);
+                }
             }]);
 
         if ($restaurantId) {
-            $query->where('restaurant_id', $restaurantId);
+            // Only show ingredients that have suppliers belonging to this restaurant
+            $query->whereHas('suppliers', function ($query) use ($restaurantId) {
+                $query->where('restaurant_id', $restaurantId)
+                    ->where('ingredient_suppliers.is_active', true);
+            });
         }
 
         return $query->orderBy('current_stock', 'asc')->get();

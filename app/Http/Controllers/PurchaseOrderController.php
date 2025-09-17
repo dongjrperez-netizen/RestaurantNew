@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Notifications\PurchaseOrderApproved;
 use App\Notifications\PurchaseOrderSubmitted;
 use App\Services\BillingService;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -132,7 +133,26 @@ class PurchaseOrderController extends Controller
             'delivery_instructions' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.ingredient_id' => 'required|exists:ingredients,ingredient_id',
-            'items.*.ordered_quantity' => 'required|numeric|min:0.01',
+            'items.*.ordered_quantity' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                function ($attribute, $value, $fail) use ($request) {
+                    $itemIndex = explode('.', $attribute)[1];
+                    $ingredientId = $request->input("items.{$itemIndex}.ingredient_id");
+                    $supplierId = $request->input('supplier_id');
+
+                    $ingredientSupplier = IngredientSupplier::where('ingredient_id', $ingredientId)
+                        ->where('supplier_id', $supplierId)
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($ingredientSupplier && $value > $ingredientSupplier->minimum_order_quantity) {
+                        $ingredientName = Ingredients::find($ingredientId)->ingredient_name ?? 'this ingredient';
+                        $fail("The ordered quantity for {$ingredientName} cannot exceed the supplier's maximum order quantity of {$ingredientSupplier->minimum_order_quantity} {$ingredientSupplier->package_unit}.");
+                    }
+                }
+            ],
             'items.*.unit_price' => 'required|numeric|min:0.01',
             'items.*.unit_of_measure' => 'required|string|max:50',
             'items.*.notes' => 'nullable|string',
@@ -254,7 +274,26 @@ class PurchaseOrderController extends Controller
             'delivery_instructions' => 'nullable|string',
             'items' => 'required|array|min:1',
             'items.*.ingredient_id' => 'required|exists:ingredients,ingredient_id',
-            'items.*.ordered_quantity' => 'required|numeric|min:0.01',
+            'items.*.ordered_quantity' => [
+                'required',
+                'numeric',
+                'min:0.01',
+                function ($attribute, $value, $fail) use ($request) {
+                    $itemIndex = explode('.', $attribute)[1];
+                    $ingredientId = $request->input("items.{$itemIndex}.ingredient_id");
+                    $supplierId = $request->input('supplier_id');
+
+                    $ingredientSupplier = IngredientSupplier::where('ingredient_id', $ingredientId)
+                        ->where('supplier_id', $supplierId)
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($ingredientSupplier && $value > $ingredientSupplier->minimum_order_quantity) {
+                        $ingredientName = Ingredients::find($ingredientId)->ingredient_name ?? 'this ingredient';
+                        $fail("The ordered quantity for {$ingredientName} cannot exceed the supplier's maximum order quantity of {$ingredientSupplier->minimum_order_quantity} {$ingredientSupplier->package_unit}.");
+                    }
+                }
+            ],
             'items.*.unit_price' => 'required|numeric|min:0.01',
             'items.*.unit_of_measure' => 'required|string|max:50',
             'items.*.notes' => 'nullable|string',
@@ -424,10 +463,25 @@ class PurchaseOrderController extends Controller
                     $ingredient = Ingredients::find($item->ingredient_id);
                     if ($ingredient) {
                         $oldStock = $ingredient->current_stock;
-                        $ingredient->current_stock += $itemData['received_quantity'];
-                        $ingredient->save();
+                        $oldPackages = $ingredient->packages;
 
-                        \Log::info("Stock updated for ingredient {$ingredient->ingredient_name}: {$oldStock} -> {$ingredient->current_stock} (+".$itemData['received_quantity'].')');
+                        // Get the package quantity for this supplier
+                        $packageQuantity = $ingredient->getPackageQuantityForSupplier($purchaseOrder->supplier_id);
+
+                        if ($packageQuantity) {
+                            // Add received quantity to packages
+                            $ingredient->packages += $itemData['received_quantity'];
+
+                            // Calculate total stock increase (received packages × package contents)
+                            $stockIncrease = $itemData['received_quantity'] * $packageQuantity;
+                            $ingredient->current_stock += $stockIncrease;
+
+                            $ingredient->save();
+
+                            \Log::info("Stock updated for ingredient {$ingredient->ingredient_name}: Packages: {$oldPackages} -> {$ingredient->packages} (+{$itemData['received_quantity']}), Stock: {$oldStock} -> {$ingredient->current_stock} (+{$stockIncrease})");
+                        } else {
+                            \Log::error("Package quantity not found for ingredient {$ingredient->ingredient_name} with supplier {$purchaseOrder->supplier_id}");
+                        }
                     } else {
                         \Log::error('Ingredient not found with ID: '.$item->ingredient_id);
                     }

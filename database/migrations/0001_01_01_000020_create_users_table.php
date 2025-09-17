@@ -20,7 +20,6 @@ return new class extends Migration
             $table->string('gender');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
-            $table->string('phonenumber')->unique();
             $table->string('password');
             $table->string('status')->default('Pending');
             $table->foreignId('role_id')->constrained('roles')->onDelete('cascade')->default(1);

@@ -82,6 +82,7 @@ class SupplierPayment extends Model
             'bank_transfer' => 'Bank Transfer',
             'check' => 'Check',
             'credit_card' => 'Credit Card',
+            'paypal' => 'PayPal',
             'online' => 'Online Payment',
             'other' => 'Other',
             default => ucfirst(str_replace('_', ' ', $this->payment_method))

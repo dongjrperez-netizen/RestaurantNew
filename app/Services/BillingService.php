@@ -119,6 +119,14 @@ class BillingService
         return DB::transaction(function () use ($billId, $paymentData) {
             $bill = SupplierBill::with('supplier')->findOrFail($billId);
 
+            Log::info('Recording payment - Before payment', [
+                'bill_id' => $billId,
+                'original_status' => $bill->status,
+                'original_outstanding' => $bill->outstanding_amount,
+                'original_paid' => $bill->paid_amount,
+                'payment_amount' => $paymentData['payment_amount'],
+            ]);
+
             // Validate payment amount
             if ($paymentData['payment_amount'] > $bill->outstanding_amount) {
                 throw new \Exception('Payment amount cannot exceed outstanding amount');
@@ -145,18 +153,24 @@ class BillingService
             // Update bill status and amounts
             $this->updateBillAfterPayment($bill, $paymentData['payment_amount']);
 
-            Log::info('Payment recorded', [
+            // Reload the bill to get updated values
+            $updatedBill = $bill->fresh();
+
+            Log::info('Payment recorded - After update', [
                 'payment_id' => $payment->payment_id,
                 'payment_reference' => $payment->payment_reference,
                 'bill_id' => $billId,
                 'amount' => $paymentData['payment_amount'],
                 'method' => $paymentData['payment_method'],
+                'new_status' => $updatedBill->status,
+                'new_outstanding' => $updatedBill->outstanding_amount,
+                'new_paid' => $updatedBill->paid_amount,
             ]);
 
             return [
                 'success' => true,
                 'payment' => $payment->fresh(),
-                'bill' => $bill->fresh(),
+                'bill' => $updatedBill,
                 'message' => "Payment {$payment->payment_reference} recorded successfully",
             ];
         });
@@ -338,6 +352,10 @@ class BillingService
      */
     private function updateBillAfterPayment(SupplierBill $bill, float $paymentAmount): void
     {
+        $originalPaidAmount = $bill->paid_amount;
+        $originalOutstandingAmount = $bill->outstanding_amount;
+        $originalStatus = $bill->status;
+
         $newPaidAmount = $bill->paid_amount + $paymentAmount;
         $newOutstandingAmount = $bill->total_amount - $newPaidAmount;
 
@@ -352,10 +370,29 @@ class BillingService
             $newStatus = 'overdue';
         }
 
-        $bill->update([
+        Log::info('Updating bill after payment', [
+            'bill_id' => $bill->bill_id,
+            'payment_amount' => $paymentAmount,
+            'original_paid' => $originalPaidAmount,
+            'original_outstanding' => $originalOutstandingAmount,
+            'original_status' => $originalStatus,
+            'new_paid' => $newPaidAmount,
+            'new_outstanding' => $newOutstandingAmount,
+            'new_status' => $newStatus,
+        ]);
+
+        $updateResult = $bill->update([
             'paid_amount' => $newPaidAmount,
             'outstanding_amount' => $newOutstandingAmount,
             'status' => $newStatus,
+        ]);
+
+        Log::info('Bill update result', [
+            'bill_id' => $bill->bill_id,
+            'update_successful' => $updateResult,
+            'actual_paid_after_update' => $bill->fresh()->paid_amount,
+            'actual_outstanding_after_update' => $bill->fresh()->outstanding_amount,
+            'actual_status_after_update' => $bill->fresh()->status,
         ]);
     }
 

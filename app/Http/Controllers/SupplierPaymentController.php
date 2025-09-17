@@ -12,7 +12,7 @@ class SupplierPaymentController extends Controller
 {
     public function index()
     {
-        $restaurantId = auth()->user()->restaurant_data->id;
+        $restaurantId = auth()->user()->restaurantData->id;
 
         $payments = SupplierPayment::with(['supplier', 'bill', 'createdBy'])
             ->where('restaurant_id', $restaurantId)
@@ -46,7 +46,7 @@ class SupplierPaymentController extends Controller
 
     public function create($billId = null)
     {
-        $restaurantId = auth()->user()->restaurant_data->id;
+        $restaurantId = auth()->user()->restaurantData->id;
 
         $bills = SupplierBill::with('supplier')
             ->where('restaurant_id', $restaurantId)
@@ -90,7 +90,7 @@ class SupplierPaymentController extends Controller
 
             $payment = SupplierPayment::create([
                 'bill_id' => $validated['bill_id'],
-                'restaurant_id' => auth()->user()->restaurant_data->id,
+                'restaurant_id' => auth()->user()->restaurantData->id,
                 'supplier_id' => $bill->supplier_id,
                 'payment_date' => $validated['payment_date'],
                 'payment_amount' => $validated['payment_amount'],
@@ -271,5 +271,84 @@ class SupplierPaymentController extends Controller
             'supplier' => $bill->supplier,
             'outstanding_amount' => $bill->outstanding_amount,
         ]);
+    }
+
+    /**
+     * Record a payment for a bill (API endpoint for billing routes)
+     */
+    public function recordPayment(Request $request)
+    {
+        $validated = $request->validate([
+            'bill_id' => 'required|exists:supplier_bills,bill_id',
+            'payment_date' => 'required|date',
+            'payment_amount' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|in:cash,bank_transfer,check,credit_card,paypal,online,other',
+            'transaction_reference' => 'nullable|string|max:255',
+            'notes' => 'nullable|string|max:500',
+            'created_by_user_id' => 'nullable|exists:users,id',
+        ]);
+
+        $bill = SupplierBill::findOrFail($validated['bill_id']);
+
+        if ($validated['payment_amount'] > $bill->outstanding_amount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment amount cannot exceed outstanding amount.',
+                'errors' => ['payment_amount' => ['Payment amount cannot exceed outstanding amount.']]
+            ], 422);
+        }
+
+        try {
+            DB::beginTransaction();
+
+            $payment = SupplierPayment::create([
+                'bill_id' => $validated['bill_id'],
+                'restaurant_id' => $bill->restaurant_id,
+                'supplier_id' => $bill->supplier_id,
+                'payment_date' => $validated['payment_date'],
+                'payment_amount' => $validated['payment_amount'],
+                'payment_method' => $validated['payment_method'],
+                'transaction_reference' => $validated['transaction_reference'],
+                'notes' => $validated['notes'],
+                'created_by_user_id' => $validated['created_by_user_id'] ?? auth()->id(),
+                'status' => 'completed',
+            ]);
+
+            // Update bill status and amounts
+            $newPaidAmount = $bill->paid_amount + $validated['payment_amount'];
+            $newOutstandingAmount = $bill->total_amount - $newPaidAmount;
+
+            $newStatus = 'pending';
+            if ($newOutstandingAmount <= 0) {
+                $newStatus = 'paid';
+            } elseif ($newPaidAmount > 0) {
+                $newStatus = 'partially_paid';
+            }
+
+            $bill->update([
+                'paid_amount' => $newPaidAmount,
+                'outstanding_amount' => $newOutstandingAmount,
+                'status' => $newStatus,
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Payment recorded successfully.',
+                'data' => [
+                    'payment' => $payment->fresh(['bill', 'supplier', 'createdBy']),
+                    'bill' => $bill->fresh(),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Error recording payment: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

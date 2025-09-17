@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { type BreadcrumbItem } from '@/types';
-import { ref } from 'vue';
+import { ref, reactive } from 'vue';
 
 
 interface Payment {
@@ -79,10 +79,13 @@ interface Props {
 
 const props = defineProps<Props>();
 
+// Create a reactive bill object that can be updated
+const bill = reactive<Bill>({ ...props.bill });
+
 const breadcrumbs: BreadcrumbItem[] = [
   { title: 'Dashboard', href: '/dashboard' },
   { title: 'Bills', href: '/bills' },
-  { title: props.bill.bill_number, href: `/bills/${props.bill.bill_id}` },
+  { title: bill.bill_number, href: `/bills/${bill.bill_id}` },
 ];
 
 // Status color mapping
@@ -132,18 +135,96 @@ const paymentForm = useForm({
   notes: ''
 });
 
-const recordPayment = () => {
-  paymentForm.post(route('bills.quick-payment', props.bill.bill_id), {
-    onSuccess: () => {
+const recordPayment = async () => {
+  try {
+    // Validate form data before sending
+    if (!paymentForm.payment_amount || paymentForm.payment_amount <= 0) {
+      throw new Error('Please enter a valid payment amount');
+    }
+
+    if (paymentForm.payment_amount > bill.outstanding_amount) {
+      throw new Error('Payment amount cannot exceed outstanding amount');
+    }
+
+    // Get fresh CSRF token to ensure it's not stale
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    if (!csrfToken) {
+      throw new Error('CSRF token not found. Please refresh the page and try again.');
+    }
+
+    const response = await fetch(route('bills.quick-payment', bill.bill_id), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': csrfToken,
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        payment_amount: paymentForm.payment_amount,
+        payment_method: paymentForm.payment_method,
+        payment_date: paymentForm.payment_date,
+        transaction_reference: paymentForm.transaction_reference,
+        notes: paymentForm.notes,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Payment failed');
+    }
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Update the reactive bill object with the updated data
+      if (data.data && data.data.bill) {
+        try {
+          // Update each property individually to maintain reactivity
+          bill.status = data.data.bill.status;
+          bill.paid_amount = data.data.bill.paid_amount;
+          bill.outstanding_amount = data.data.bill.outstanding_amount;
+
+          // Update payments array if provided
+          if (data.data.bill.payments) {
+            bill.payments = [...data.data.bill.payments];
+          }
+
+          console.log('Bill updated successfully:', {
+            status: bill.status,
+            paid_amount: bill.paid_amount,
+            outstanding_amount: bill.outstanding_amount
+          });
+        } catch (updateError) {
+          console.error('Error updating bill data:', updateError);
+          // Fallback: reload the page if update fails
+          window.location.reload();
+          return;
+        }
+      }
+
       showPaymentDialog.value = false;
       paymentForm.reset();
-    },
-  });
+
+      // Show success message
+      console.log('Payment recorded successfully:', data.message);
+    } else {
+      throw new Error(data.message || 'Payment recording failed');
+    }
+  } catch (error) {
+    console.error('Payment recording error:', error);
+    let message = 'Payment recording failed';
+    if (error instanceof Error) {
+      message += ': ' + error.message;
+    }
+    alert(message);
+  }
 };
 
 // Set payment amount to full outstanding amount
 const payFullAmount = () => {
-  paymentForm.payment_amount = props.bill.outstanding_amount;
+  paymentForm.payment_amount = bill?.outstanding_amount || 0;
 };
 
 const getPaymentMethodDisplay = (method: string) => {
@@ -152,10 +233,125 @@ const getPaymentMethodDisplay = (method: string) => {
     'bank_transfer': 'Bank Transfer',
     'check': 'Check',
     'credit_card': 'Credit Card',
+    'paypal': 'PayPal',
     'online': 'Online Payment',
     'other': 'Other'
   };
   return methods[method] || method;
+};
+
+// PayPal payment form
+const showPaypalDialog = ref(false);
+const paypalForm = ref({
+  payment_amount: 0,
+  notes: '',
+  processing: false
+});
+
+const payWithPaypal = async () => {
+  paypalForm.value.processing = true;
+
+  try {
+    // Validate PayPal form data before sending
+    if (!paypalForm.value.payment_amount || paypalForm.value.payment_amount <= 0) {
+      throw new Error('Please enter a valid payment amount');
+    }
+
+    if (paypalForm.value.payment_amount > bill.outstanding_amount) {
+      throw new Error('Payment amount cannot exceed outstanding amount');
+    }
+
+    // Get fresh CSRF token to ensure it's not stale
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+    if (!csrfToken) {
+      throw new Error('CSRF token not found. Please refresh the page and try again.');
+    }
+
+    const response = await fetch(route('bills.paypal.pay', bill.bill_id), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': csrfToken,
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        payment_amount: paypalForm.value.payment_amount,
+        notes: paypalForm.value.notes,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Payment failed');
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.approval_url) {
+      // Close the dialog and redirect to PayPal
+      showPaypalDialog.value = false;
+      window.location.href = data.approval_url;
+    } else {
+      throw new Error(data.message || 'PayPal payment failed');
+    }
+  } catch (error) {
+    console.error('PayPal payment error:', error);
+    // You could show an error message to the user here
+    let message = 'PayPal payment failed';
+    if (error instanceof Error) {
+      message += ': ' + error.message;
+    }
+    alert(message);
+  } finally {
+    paypalForm.value.processing = false;
+  }
+};
+
+// Set PayPal payment amount to full outstanding amount
+const payFullAmountPaypal = () => {
+  paypalForm.value.payment_amount = bill?.outstanding_amount || 0;
+};
+
+// Debug function to test bill update
+const testBillUpdate = () => {
+  console.log('Current bill data:', {
+    bill_id: bill.bill_id,
+    status: bill.status,
+    paid_amount: bill.paid_amount,
+    outstanding_amount: bill.outstanding_amount,
+    total_amount: bill.total_amount
+  });
+
+  // Test updating bill data
+  const mockUpdatedBill = {
+    status: 'paid',
+    paid_amount: bill.total_amount,
+    outstanding_amount: 0,
+    payments: [...(bill.payments || []), {
+      payment_id: Date.now(),
+      payment_reference: `TEST-${Date.now()}`,
+      payment_amount: bill.outstanding_amount,
+      payment_method: 'test',
+      payment_date: new Date().toISOString(),
+      status: 'completed'
+    }]
+  };
+
+  // Update each property individually
+  bill.status = mockUpdatedBill.status;
+  bill.paid_amount = mockUpdatedBill.paid_amount;
+  bill.outstanding_amount = mockUpdatedBill.outstanding_amount;
+  bill.payments = mockUpdatedBill.payments;
+
+  console.log('Updated bill data:', {
+    bill_id: bill.bill_id,
+    status: bill.status,
+    paid_amount: bill.paid_amount,
+    outstanding_amount: bill.outstanding_amount,
+    total_amount: bill.total_amount
+  });
 };
 </script>
 
@@ -179,105 +375,203 @@ const getPaymentMethodDisplay = (method: string) => {
           <Badge v-if="bill.is_overdue" variant="destructive">
             {{ bill.days_overdue }} days overdue
           </Badge>
-          <Dialog v-if="bill.outstanding_amount > 0" v-model:open="showPaymentDialog">
-            <DialogTrigger as-child>
-              <Button>Record Payment</Button>
-            </DialogTrigger>
-            <DialogContent class="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>Record Payment</DialogTitle>
-              </DialogHeader>
-              <form @submit.prevent="recordPayment" class="space-y-4">
-                <div>
-                  <Label for="amount">Payment Amount</Label>
-                  <div class="flex space-x-2">
+
+          <!-- Payment Buttons -->
+          <div v-if="bill.outstanding_amount > 0" class="flex space-x-2">
+            <!-- Debug button (remove in production) -->
+            <Button
+              @click="testBillUpdate"
+              variant="outline"
+              size="sm"
+              class="bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+            >
+              Test Update
+            </Button>
+
+            <!-- Manual Payment Dialog -->
+            <Dialog v-model:open="showPaymentDialog">
+              <DialogTrigger as-child>
+                <Button variant="outline">Record Payment</Button>
+              </DialogTrigger>
+              <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Record Payment</DialogTitle>
+                </DialogHeader>
+                <form @submit.prevent="recordPayment" class="space-y-4">
+                  <div>
+                    <Label for="amount">Payment Amount</Label>
+                    <div class="flex space-x-2">
+                      <Input
+                        id="amount"
+                        v-model.number="paymentForm.payment_amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        :max="bill.outstanding_amount"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="payFullAmount"
+                      >
+                        Full
+                      </Button>
+                    </div>
+                    <p class="text-sm text-muted-foreground mt-1">
+                      Outstanding: {{ formatCurrency(bill.outstanding_amount) }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label for="method">Payment Method</Label>
+                    <Select v-model="paymentForm.payment_method" required>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                        <SelectItem value="check">Check</SelectItem>
+                        <SelectItem value="credit_card">Credit Card</SelectItem>
+                        <SelectItem value="online">Online Payment</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label for="date">Payment Date</Label>
                     <Input
-                      id="amount"
-                      v-model.number="paymentForm.payment_amount"
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      :max="bill.outstanding_amount"
+                      id="date"
+                      v-model="paymentForm.payment_date"
+                      type="date"
                       required
                     />
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm"
-                      @click="payFullAmount"
+                  </div>
+
+                  <div>
+                    <Label for="reference">Transaction Reference</Label>
+                    <Input
+                      id="reference"
+                      v-model="paymentForm.transaction_reference"
+                      placeholder="Optional transaction reference"
+                    />
+                  </div>
+
+                  <div>
+                    <Label for="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      v-model="paymentForm.notes"
+                      placeholder="Optional payment notes"
+                      rows="2"
+                    />
+                  </div>
+
+                  <div class="flex justify-end space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      @click="showPaymentDialog = false"
                     >
-                      Full
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      :disabled="paymentForm.processing"
+                    >
+                      {{ paymentForm.processing ? 'Recording...' : 'Record Payment' }}
                     </Button>
                   </div>
-                  <p class="text-sm text-muted-foreground mt-1">
-                    Outstanding: {{ formatCurrency(bill.outstanding_amount) }}
-                  </p>
-                </div>
+                </form>
+              </DialogContent>
+            </Dialog>
 
-                <div>
-                  <Label for="method">Payment Method</Label>
-                  <Select v-model="paymentForm.payment_method" required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                      <SelectItem value="check">Check</SelectItem>
-                      <SelectItem value="credit_card">Credit Card</SelectItem>
-                      <SelectItem value="online">Online Payment</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <!-- PayPal Payment Dialog -->
+            <Dialog v-model:open="showPaypalDialog">
+              <DialogTrigger as-child>
+                <Button class="bg-blue-600 hover:bg-blue-700">
+                  <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a9.124 9.124 0 0 1-.465 2.963c-1.127 5.731-5.139 7.12-9.928 7.12h-1.988a.641.641 0 0 0-.633.74l-.654 4.14-.186 1.179a.33.33 0 0 0 .325.381h2.735a.563.563 0 0 0 .555-.474l.023-.12.447-2.83.029-.156a.563.563 0 0 1 .555-.474h.35c3.828 0 6.822-1.553 7.702-6.05.37-1.896.18-3.476-.733-4.612a3.896 3.896 0 0 0-1.033-.778z"/>
+                  </svg>
+                  Pay with PayPal
+                </Button>
+              </DialogTrigger>
+              <DialogContent class="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Pay with PayPal</DialogTitle>
+                </DialogHeader>
+                <form @submit.prevent="payWithPaypal" class="space-y-4">
+                  <div>
+                    <Label for="paypal-amount">Payment Amount</Label>
+                    <div class="flex space-x-2">
+                      <Input
+                        id="paypal-amount"
+                        v-model.number="paypalForm.payment_amount"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        :max="bill.outstanding_amount"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        @click="payFullAmountPaypal"
+                      >
+                        Full
+                      </Button>
+                    </div>
+                    <p class="text-sm text-muted-foreground mt-1">
+                      Outstanding: {{ formatCurrency(bill.outstanding_amount) }}
+                    </p>
+                  </div>
 
-                <div>
-                  <Label for="date">Payment Date</Label>
-                  <Input
-                    id="date"
-                    v-model="paymentForm.payment_date"
-                    type="date"
-                    required
-                  />
-                </div>
+                  <div>
+                    <Label for="paypal-notes">Notes (Optional)</Label>
+                    <Textarea
+                      id="paypal-notes"
+                      v-model="paypalForm.notes"
+                      placeholder="Optional payment notes"
+                      rows="2"
+                    />
+                  </div>
 
-                <div>
-                  <Label for="reference">Transaction Reference</Label>
-                  <Input
-                    id="reference"
-                    v-model="paymentForm.transaction_reference"
-                    placeholder="Optional transaction reference"
-                  />
-                </div>
+                  <div class="bg-blue-50 p-4 rounded-lg">
+                    <div class="flex items-center">
+                      <svg class="w-5 h-5 text-blue-600 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a9.124 9.124 0 0 1-.465 2.963c-1.127 5.731-5.139 7.12-9.928 7.12h-1.988a.641.641 0 0 0-.633.74l-.654 4.14-.186 1.179a.33.33 0 0 0 .325.381h2.735a.563.563 0 0 0 .555-.474l.023-.12.447-2.83.029-.156a.563.563 0 0 1 .555-.474h.35c3.828 0 6.822-1.553 7.702-6.05.37-1.896.18-3.476-.733-4.612a3.896 3.896 0 0 0-1.033-.778z"/>
+                      </svg>
+                      <div>
+                        <p class="text-sm font-medium text-blue-900">Secure PayPal Payment</p>
+                        <p class="text-xs text-blue-700">You'll be redirected to PayPal to complete the payment</p>
+                      </div>
+                    </div>
+                  </div>
 
-                <div>
-                  <Label for="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    v-model="paymentForm.notes"
-                    placeholder="Optional payment notes"
-                    rows="2"
-                  />
-                </div>
-
-                <div class="flex justify-end space-x-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    @click="showPaymentDialog = false"
-                  >
-                    Cancel
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    :disabled="paymentForm.processing"
-                  >
-                    {{ paymentForm.processing ? 'Recording...' : 'Record Payment' }}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+                  <div class="flex justify-end space-x-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      @click="showPaypalDialog = false"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      :disabled="paypalForm.processing"
+                      class="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {{ paypalForm.processing ? 'Processing...' : 'Continue to PayPal' }}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 
@@ -384,7 +678,7 @@ const getPaymentMethodDisplay = (method: string) => {
         <CardHeader>
           <CardTitle>Purchase Order Items</CardTitle>
           <p class="text-sm text-muted-foreground">
-            From PO: {{ bill.purchase_order.po_number }} 
+            From PO: {{ bill.purchase_order.po_number }}
             ({{ formatDate(bill.purchase_order.order_date) }})
           </p>
         </CardHeader>
@@ -462,13 +756,18 @@ const getPaymentMethodDisplay = (method: string) => {
         <Button variant="outline" as-child>
           <Link href="/bills">← Back to Bills</Link>
         </Button>
-        
+
         <div class="space-x-2">
           <Button v-if="bill.status !== 'paid'" variant="outline" as-child>
             <Link :href="`/bills/${bill.bill_id}/edit`">Edit Bill</Link>
           </Button>
-          <Button variant="outline">
-            Print Bill
+          <Button variant="outline" as-child>
+            <a :href="route('bills.download-pdf', bill.bill_id)" target="_blank">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              Download PDF
+            </a>
           </Button>
         </div>
       </div>

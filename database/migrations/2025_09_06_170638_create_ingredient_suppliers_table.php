@@ -17,6 +17,8 @@ return new class extends Migration
             $table->foreignId('supplier_id')->constrained('suppliers', 'supplier_id')->cascadeOnDelete();
             $table->string('package_unit', 50);
             $table->decimal('package_quantity', 10, 2);
+            $table->decimal('package_contents_quantity', 10, 2);
+             $table->string('package_contents_unit', 50);
             $table->decimal('package_price', 10, 2);
             $table->decimal('lead_time_days', 5, 2)->default(0);
             $table->decimal('minimum_order_quantity', 10, 2)->default(1);

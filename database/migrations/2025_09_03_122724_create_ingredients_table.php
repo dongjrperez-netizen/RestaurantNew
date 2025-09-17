@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('ingredient_name', 150);
             $table->string('base_unit', 50);
             $table->decimal('current_stock', 10, 2)->default(0);
+            $table->decimal('packages', 10, 2)->default(0);
             $table->decimal('reorder_level', 10, 2)->default(0);
             $table->timestamps();
         });

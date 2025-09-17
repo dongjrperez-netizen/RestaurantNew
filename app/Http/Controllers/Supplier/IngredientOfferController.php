@@ -21,7 +21,7 @@ class IngredientOfferController extends Controller
             ->with(['restaurant' => function ($query) {
                 $query->select('id', 'restaurant_name', 'address');
             }])
-            ->withPivot(['package_unit', 'package_quantity', 'package_price', 'lead_time_days', 'minimum_order_quantity', 'is_active'])
+            ->withPivot(['package_unit', 'package_quantity', 'package_contents_quantity', 'package_contents_unit', 'package_price', 'lead_time_days', 'minimum_order_quantity', 'is_active'])
             ->orderBy('ingredient_name')
             ->get();
 
@@ -51,9 +51,10 @@ class IngredientOfferController extends Controller
 
         $request->validate([
             'ingredient_name' => 'required|string|max:150',
-            'base_unit' => 'required|string|max:50',
             'package_unit' => 'required|string|max:50',
             'package_quantity' => 'required|numeric|min:0.01',
+            'package_contents_quantity' => 'required|numeric|min:0.01',
+            'package_contents_unit' => 'required|string|max:50',
             'package_price' => 'required|numeric|min:0.01',
             'lead_time_days' => 'required|numeric|min:0',
             'minimum_order_quantity' => 'required|numeric|min:0.01',
@@ -66,10 +67,11 @@ class IngredientOfferController extends Controller
             $restaurantId = $supplier->restaurant_id;
 
             // First, create or find the ingredient in the restaurant's ingredients table
+            // Use package_contents_unit as the base_unit for the ingredient
             $ingredient = Ingredients::firstOrCreate([
                 'restaurant_id' => $restaurantId,
                 'ingredient_name' => $request->ingredient_name,
-                'base_unit' => $request->base_unit,
+                'base_unit' => $request->package_contents_unit,
             ], [
                 'current_stock' => 0,
                 'reorder_level' => 0,
@@ -95,6 +97,8 @@ class IngredientOfferController extends Controller
                 'supplier_id' => $supplier->supplier_id,
                 'package_unit' => $request->package_unit,
                 'package_quantity' => $request->package_quantity,
+                'package_contents_quantity' => $request->package_contents_quantity,
+                'package_contents_unit' => $request->package_contents_unit,
                 'package_price' => $request->package_price,
                 'lead_time_days' => $request->lead_time_days,
                 'minimum_order_quantity' => $request->minimum_order_quantity,
@@ -125,7 +129,7 @@ class IngredientOfferController extends Controller
             ->with(['restaurant' => function ($query) {
                 $query->select('id', 'restaurant_name');
             }])
-            ->withPivot(['package_unit', 'package_quantity', 'package_price', 'lead_time_days', 'minimum_order_quantity', 'is_active'])
+            ->withPivot(['package_unit', 'package_quantity', 'package_contents_quantity', 'package_contents_unit', 'package_price', 'lead_time_days', 'minimum_order_quantity', 'is_active'])
             ->where('ingredient_id', $ingredientId)
             ->firstOrFail();
 
@@ -142,6 +146,8 @@ class IngredientOfferController extends Controller
         $request->validate([
             'package_unit' => 'required|string|max:50',
             'package_quantity' => 'required|numeric|min:0.01',
+            'package_contents_quantity' => 'required|numeric|min:0.01',
+            'package_contents_unit' => 'required|string|max:50',
             'package_price' => 'required|numeric|min:0.01',
             'lead_time_days' => 'required|numeric|min:0',
             'minimum_order_quantity' => 'required|numeric|min:0.01',
@@ -151,6 +157,8 @@ class IngredientOfferController extends Controller
         $supplier->ingredients()->updateExistingPivot($ingredientId, [
             'package_unit' => $request->package_unit,
             'package_quantity' => $request->package_quantity,
+            'package_contents_quantity' => $request->package_contents_quantity,
+            'package_contents_unit' => $request->package_contents_unit,
             'package_price' => $request->package_price,
             'lead_time_days' => $request->lead_time_days,
             'minimum_order_quantity' => $request->minimum_order_quantity,

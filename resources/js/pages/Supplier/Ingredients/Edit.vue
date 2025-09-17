@@ -20,6 +20,8 @@ interface IngredientOffer {
   pivot: {
     package_unit: string;
     package_quantity: number;
+    package_contents_quantity: number;
+    package_contents_unit: string;
     package_price: number;
     lead_time_days: number;
     minimum_order_quantity: number;
@@ -43,6 +45,8 @@ const props = defineProps<Props>();
 const form = useForm({
   package_unit: props.ingredient.pivot.package_unit,
   package_quantity: props.ingredient.pivot.package_quantity,
+  package_contents_quantity: props.ingredient.pivot.package_contents_quantity,
+  package_contents_unit: props.ingredient.pivot.package_contents_unit,
   package_price: props.ingredient.pivot.package_price,
   lead_time_days: props.ingredient.pivot.lead_time_days,
   minimum_order_quantity: props.ingredient.pivot.minimum_order_quantity,
@@ -106,6 +110,48 @@ const submit = () => {
                 <div v-if="form.errors.package_unit" class="text-sm text-red-600">
                   {{ form.errors.package_unit }}
                 </div>
+              </div>
+            </div>
+
+            <!-- Package Contents Details -->
+            <div class="border-t pt-4">
+              <h3 class="text-lg font-medium mb-3">Package Contents</h3>
+              <p class="text-sm text-muted-foreground mb-4">Specify what's inside each package</p>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <div class="space-y-2">
+                  <Label for="package_contents_quantity">Contents Quantity *</Label>
+                  <Input
+                    id="package_contents_quantity"
+                    v-model.number="form.package_contents_quantity"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                  />
+                  <div v-if="form.errors.package_contents_quantity" class="text-sm text-red-600">
+                    {{ form.errors.package_contents_quantity }}
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <Label for="package_contents_unit">Contents Unit *</Label>
+                  <Input
+                    id="package_contents_unit"
+                    v-model="form.package_contents_unit"
+                    placeholder="pcs, kg, lbs, liters, etc."
+                    required
+                  />
+                  <div v-if="form.errors.package_contents_unit" class="text-sm text-red-600">
+                    {{ form.errors.package_contents_unit }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3 p-3 bg-blue-50 rounded-md">
+                <p class="text-sm text-blue-800">
+                  <strong>Example:</strong> 1 box contains 50 pcs of tomatoes
+                </p>
               </div>
             </div>
 

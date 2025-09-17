@@ -5,9 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthBase from '@/layouts/AuthLayout.vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, usePage } from '@inertiajs/vue3';
 import { LoaderCircle, Plus, X } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+
+interface Props {
+  debug_info?: any;
+}
+
+const props = defineProps<Props>();
+const page = usePage();
 
 interface DocumentItem {
   id: number;
@@ -103,6 +110,12 @@ const hasRequiredDocuments = () => {
 <template>
   <AuthBase title="Upload Required Documents" description="Please upload your business documents to complete registration">
     <Head title="Upload Documents" />
+
+    <!-- Debug Info Section -->
+    <div v-if="props.debug_info" style="background: #e3f2fd; padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid #2196f3;">
+      <h3 style="color: #1976d2; margin: 0 0 10px 0;">🔍 Debug Information</h3>
+      <pre style="background: #fff; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px;">{{ JSON.stringify(props.debug_info, null, 2) }}</pre>
+    </div>
 
     <form @submit.prevent="submit" class="flex flex-col gap-6">
       <div class="grid gap-6">

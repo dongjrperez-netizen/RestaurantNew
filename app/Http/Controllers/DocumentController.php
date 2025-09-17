@@ -34,7 +34,6 @@ class DocumentController extends Controller
             'restaurant_data.restaurant_name',
             DB::raw("CONCAT(users.first_name, ' ', users.last_name) as user_name"),
             'users.email as contact_email',
-            'users.phonenumber as contact_phone',
             'users.status',
         ])
             ->get()
@@ -57,7 +56,6 @@ class DocumentController extends Controller
                 'restaurant_name' => $app->restaurant_name,
                 'user_name' => $app->user_name,
                 'contact_email' => $app->contact_email,
-                'contact_phone' => $app->contact_phone,
                 'status' => $app->status,
                 'documents' => $docs->map(function ($doc) {
                     return [

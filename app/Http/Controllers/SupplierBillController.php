@@ -5,12 +5,16 @@ namespace App\Http\Controllers;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierBill;
+use App\Models\SupplierPayment;
 use App\Services\BillingService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Srmklive\PayPal\Services\PayPal as PayPalClient;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class SupplierBillController extends Controller
 {
@@ -60,6 +64,15 @@ class SupplierBillController extends Controller
 
         $bill->is_overdue = $bill->is_overdue;
         $bill->days_overdue = $bill->days_overdue;
+
+        Log::info('Bills/Show - Bill data being sent to frontend', [
+            'bill_id' => $bill->bill_id,
+            'status' => $bill->status,
+            'total_amount' => $bill->total_amount,
+            'paid_amount' => $bill->paid_amount,
+            'outstanding_amount' => $bill->outstanding_amount,
+            'payments_count' => $bill->payments->count(),
+        ]);
 
         return Inertia::render('Bills/Show', [
             'bill' => $bill,
@@ -464,7 +477,7 @@ class SupplierBillController extends Controller
     {
         $validated = $request->validate([
             'payment_amount' => 'required|numeric|min:0.01',
-            'payment_method' => 'required|in:cash,bank_transfer,check,credit_card,online,other',
+            'payment_method' => 'required|in:cash,bank_transfer,check,credit_card,paypal,online,other',
             'payment_date' => 'nullable|date',
             'transaction_reference' => 'nullable|string|max:255',
             'notes' => 'nullable|string|max:500',
@@ -498,5 +511,265 @@ class SupplierBillController extends Controller
                 'message' => 'Payment failed: '.$e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Initiate PayPal payment for supplier bill
+     */
+    public function payWithPaypal(Request $request, SupplierBill $bill)
+    {
+        $validated = $request->validate([
+            'payment_amount' => 'required|numeric|min:0.01',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        $bill->load('supplier');
+
+        if ($bill->status === 'paid' || $bill->outstanding_amount <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Bill is already paid or has no outstanding amount',
+            ], 400);
+        }
+
+        if ($validated['payment_amount'] > $bill->outstanding_amount) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payment amount cannot exceed outstanding amount',
+            ], 400);
+        }
+
+        try {
+            // Check if PayPal is configured
+            $paypalConfig = config('paypal');
+            if (empty($paypalConfig['sandbox']['client_id']) && empty($paypalConfig['live']['client_id'])) {
+                throw new \Exception('PayPal credentials not configured. Please set PAYPAL_SANDBOX_CLIENT_ID and PAYPAL_SANDBOX_CLIENT_SECRET in your .env file.');
+            }
+
+            $provider = new PayPalClient;
+            $provider->setApiCredentials($paypalConfig);
+            $accessToken = $provider->getAccessToken();
+
+            Log::info('PayPal client initialized successfully', [
+                'mode' => $paypalConfig['mode'] ?? 'sandbox',
+                'has_access_token' => !empty($accessToken)
+            ]);
+
+            $returnUrl = route('bills.paypal.success', ['bill' => $bill->bill_id]);
+            $cancelUrl = route('bills.paypal.cancel', ['bill' => $bill->bill_id]);
+
+            $orderData = [
+                'intent' => 'CAPTURE',
+                'purchase_units' => [
+                    [
+                        'amount' => [
+                            'currency_code' => config('paypal.currency', 'USD'),
+                            'value' => number_format($validated['payment_amount'], 2, '.', ''),
+                        ],
+                        'description' => "Payment for Bill #{$bill->bill_number} - {$bill->supplier->supplier_name}",
+                        'invoice_id' => $bill->bill_number . '-' . time(),
+                    ],
+                ],
+                'application_context' => [
+                    'brand_name' => config('app.name'),
+                    'locale' => 'en-US',
+                    'return_url' => $returnUrl,
+                    'cancel_url' => $cancelUrl,
+                    'user_action' => 'PAY_NOW',
+                ],
+            ];
+
+            $response = $provider->createOrder($orderData);
+
+            Log::info('PayPal createOrder Response (Sandbox)', [
+                'bill_id' => $bill->bill_id,
+                'paypal_order_id' => $response['id'] ?? 'missing',
+                'response_status' => $response['status'] ?? 'missing',
+                'links_count' => isset($response['links']) ? count($response['links']) : 0,
+            ]);
+
+            if (!isset($response['id']) || !isset($response['links'])) {
+                Log::error('PayPal createOrder response missing required fields', [
+                    'response' => $response,
+                    'bill_id' => $bill->bill_id
+                ]);
+                throw new \Exception('Invalid PayPal response - missing ID or links');
+            }
+
+            // Store payment details in session for processing after approval
+            session([
+                'paypal_bill_payment' => [
+                    'bill_id' => $bill->bill_id,
+                    'payment_amount' => $validated['payment_amount'],
+                    'notes' => $validated['notes'],
+                    'order_id' => $response['id'],
+                ],
+            ]);
+
+            // Find approval URL
+            $approvalUrl = null;
+            foreach ($response['links'] as $link) {
+                if ($link['rel'] === 'approve') {
+                    $approvalUrl = $link['href'];
+                    break;
+                }
+            }
+
+            if (!$approvalUrl) {
+                throw new \Exception('PayPal approval URL not found');
+            }
+
+            // Store the approval URL in session for frontend to access
+            session()->flash('approval_url', $approvalUrl);
+
+            return response()->json([
+                'success' => true,
+                'approval_url' => $approvalUrl,
+                'order_id' => $response['id'],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('PayPal bill payment initiation failed', [
+                'bill_id' => $bill->bill_id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'validated_data' => $validated
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to initiate PayPal payment: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Handle successful PayPal payment
+     */
+    public function paypalSuccess(Request $request, SupplierBill $bill)
+    {
+        $orderId = $request->get('token') ?? $request->get('paymentId');
+        $paymentData = session('paypal_bill_payment');
+
+        Log::info('PayPal success callback', [
+            'bill_id' => $bill->bill_id,
+            'order_id' => $orderId,
+            'request_params' => $request->all(),
+            'session_data' => $paymentData
+        ]);
+
+        if (!$paymentData || $paymentData['bill_id'] != $bill->bill_id) {
+            return redirect()->route('bills.show', $bill->bill_id)
+                ->with('error', 'Invalid payment session data');
+        }
+
+        if (!$orderId) {
+            return redirect()->route('bills.show', $bill->bill_id)
+                ->with('error', 'Missing PayPal order ID');
+        }
+
+        try {
+            $provider = new PayPalClient;
+            $provider->setApiCredentials(config('paypal'));
+            $provider->getAccessToken();
+
+            Log::info('PayPal Payment Initiation (Sandbox)', [
+                'bill_id' => $bill->bill_id,
+                'payment_amount' => $paymentData['payment_amount'],
+                'currency' => config('paypal.currency'),
+                'mode' => config('paypal.mode'),
+            ]);
+
+            // Capture the payment
+            $response = $provider->capturePaymentOrder($orderId);
+
+            Log::info('PayPal capturePaymentOrder Response (Sandbox)', [
+                'bill_id' => $bill->bill_id,
+                'order_id' => $orderId,
+                'response_status' => $response['status'] ?? 'missing',
+                'response_id' => $response['id'] ?? 'missing',
+                'full_response' => $response,
+            ]);
+
+            if (!isset($response['status']) || $response['status'] !== 'COMPLETED') {
+                Log::error('PayPal payment capture failed - detailed response', [
+                    'expected_status' => 'COMPLETED',
+                    'actual_status' => $response['status'] ?? 'missing',
+                    'response' => $response,
+                    'order_id' => $orderId,
+                ]);
+                throw new \Exception('PayPal payment capture failed - Status: ' . ($response['status'] ?? 'unknown'));
+            }
+
+            // Use the BillingService to record payment consistently
+            $paymentData['payment_method'] = 'paypal';
+            $paymentData['transaction_reference'] = $response['id'];
+            $paymentData['created_by_user_id'] = auth()->id();
+
+            $result = $this->billingService->recordPayment($bill->bill_id, $paymentData);
+
+            // Clear session data
+            session()->forget('paypal_bill_payment');
+
+            return redirect()->route('bills.show', $bill->bill_id)
+                ->with('success', 'Payment completed successfully via PayPal');
+
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            Log::error('PayPal bill payment completion failed', [
+                'bill_id' => $bill->bill_id,
+                'order_id' => $orderId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('bills.show', $bill->bill_id)
+                ->with('error', 'Payment processing failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Handle cancelled PayPal payment
+     */
+    public function paypalCancel(Request $request, SupplierBill $bill)
+    {
+        // Clear session data
+        session()->forget('paypal_bill_payment');
+
+        return redirect()->route('bills.show', $bill->bill_id)
+            ->with('info', 'PayPal payment was cancelled');
+    }
+
+    /**
+     * Download bill as PDF
+     */
+    public function downloadPdf(SupplierBill $bill)
+    {
+        // Load all necessary relationships
+        $bill->load([
+            'supplier',
+            'purchaseOrder.items.ingredient',
+            'payments.createdBy'
+        ]);
+
+        // Generate PDF from the view
+        $pdf = Pdf::loadView('pdfs.supplier-bill', compact('bill'));
+
+        // Set paper size and orientation
+        $pdf->setPaper('A4', 'portrait');
+
+        // Configure PDF options for better rendering
+        $pdf->setOptions([
+            'isPhpEnabled' => true,
+            'isRemoteEnabled' => true,
+            'defaultFont' => 'Arial',
+            'dpi' => 150,
+        ]);
+
+        // Generate filename
+        $filename = 'bill-' . $bill->bill_number . '-' . date('Y-m-d') . '.pdf';
+
+        // Return PDF download response
+        return $pdf->download($filename);
     }
 }
