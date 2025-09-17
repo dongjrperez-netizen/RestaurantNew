@@ -15,6 +15,7 @@ class Subscriptionpackage extends Model
         'plan_name',
         'plan_price', 
         'plan_duration',
-        'paypal_plan_id' // ← ADD THIS LINE
+        'plan_duration_type',
+        'paypal_plan_id'
     ];
 }

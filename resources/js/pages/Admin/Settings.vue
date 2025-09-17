@@ -144,9 +144,9 @@ const formatDate = (dateString: string) => {
 };
 
 const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-PH', {
     style: 'currency',
-    currency: 'USD'
+    currency: 'PHP'
   }).format(amount);
 };
 </script>
@@ -331,7 +331,7 @@ const formatCurrency = (amount: number) => {
                         </div>
                         
                         <div>
-                          <Label for="plan_price">Price ($)</Label>
+                          <Label for="plan_price">Price (₱)</Label>
                           <Input
                             id="plan_price"
                             v-model="planForm.plan_price"

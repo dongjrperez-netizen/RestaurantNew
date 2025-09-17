@@ -71,4 +71,10 @@ class Ingredients extends Model
         }
         $this->decrement('current_stock', $quantity);
     }
+
+    // Scopes
+    public function scopeForRestaurant($query, $restaurantId)
+    {
+        return $query->where('restaurant_id', $restaurantId);
+    }
 }

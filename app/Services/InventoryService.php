@@ -115,32 +115,33 @@ class InventoryService
         }
 
         return DB::transaction(function () use ($dishId, $quantitySold) {
-            $dish = Dish::with(['dishIngredients.ingredient'])->findOrFail($dishId);
+            $dish = Dish::with(['ingredients'])->findOrFail($dishId);
             
-            if (!$dish->hasAvailableStock($quantitySold)) {
-                $insufficientStock = [];
-                foreach ($dish->dishIngredients as $dishIngredient) {
-                    $requiredQuantity = $dishIngredient->quantity_needed * $quantitySold;
-                    if ($dishIngredient->ingredient->current_stock < $requiredQuantity) {
-                        $insufficientStock[] = [
-                            'ingredient_id' => $dishIngredient->ingredient->ingredient_id,
-                            'ingredient_name' => $dishIngredient->ingredient->ingredient_name,
-                            'required' => $requiredQuantity,
-                            'available' => $dishIngredient->ingredient->current_stock,
-                            'shortage' => $requiredQuantity - $dishIngredient->ingredient->current_stock,
-                        ];
-                    }
+            // Check stock availability
+            $insufficientStock = [];
+            foreach ($dish->ingredients as $ingredient) {
+                $requiredQuantity = $ingredient->pivot->quantity * $quantitySold;
+                if ($ingredient->current_stock < $requiredQuantity) {
+                    $insufficientStock[] = [
+                        'ingredient_id' => $ingredient->ingredient_id,
+                        'ingredient_name' => $ingredient->ingredient_name,
+                        'required' => $requiredQuantity,
+                        'available' => $ingredient->current_stock,
+                        'shortage' => $requiredQuantity - $ingredient->current_stock,
+                    ];
                 }
+            }
+
+            if (!empty($insufficientStock)) {
                 throw new Exception('Insufficient stock for dish: ' . $dish->dish_name . '. Details: ' . json_encode($insufficientStock));
             }
 
             $results = [];
             $totalIngredientsProcessed = 0;
 
-            foreach ($dish->dishIngredients as $dishIngredient) {
+            foreach ($dish->ingredients as $ingredient) {
                 try {
-                    $ingredient = $dishIngredient->ingredient;
-                    $requiredQuantity = $dishIngredient->quantity_needed * $quantitySold;
+                    $requiredQuantity = $ingredient->pivot->quantity * $quantitySold;
                     $oldStock = $ingredient->current_stock;
 
                     $ingredient->decreaseStock($requiredQuantity);
@@ -151,7 +152,7 @@ class InventoryService
                         'ingredient_id' => $ingredient->ingredient_id,
                         'ingredient_name' => $ingredient->ingredient_name,
                         'success' => true,
-                        'quantity_per_dish' => $dishIngredient->quantity_needed,
+                        'quantity_per_dish' => $ingredient->pivot->quantity,
                         'total_quantity_used' => $requiredQuantity,
                         'old_stock' => $oldStock,
                         'new_stock' => $ingredient->fresh()->current_stock,
@@ -196,14 +197,13 @@ class InventoryService
      */
     public function checkStockAvailability(int $dishId, int $quantity): array
     {
-        $dish = Dish::with(['dishIngredients.ingredient'])->findOrFail($dishId);
-        
+        $dish = Dish::with(['ingredients'])->findOrFail($dishId);
+
         $availability = [];
         $canFulfill = true;
 
-        foreach ($dish->dishIngredients as $dishIngredient) {
-            $ingredient = $dishIngredient->ingredient;
-            $requiredQuantity = $dishIngredient->quantity_needed * $quantity;
+        foreach ($dish->ingredients as $ingredient) {
+            $requiredQuantity = $ingredient->pivot->quantity * $quantity;
             $isAvailable = $ingredient->current_stock >= $requiredQuantity;
 
             if (!$isAvailable) {
@@ -259,14 +259,13 @@ class InventoryService
      */
     public function calculateIngredientCost(int $dishId, int $quantity): array
     {
-        $dish = Dish::with(['dishIngredients.ingredient.suppliers'])->findOrFail($dishId);
-        
+        $dish = Dish::with(['ingredients.suppliers'])->findOrFail($dishId);
+
         $totalCost = 0;
         $ingredientCosts = [];
 
-        foreach ($dish->dishIngredients as $dishIngredient) {
-            $ingredient = $dishIngredient->ingredient;
-            $requiredQuantity = $dishIngredient->quantity_needed * $quantity;
+        foreach ($dish->ingredients as $ingredient) {
+            $requiredQuantity = $ingredient->pivot->quantity * $quantity;
             
             $activeSupplier = $ingredient->suppliers()
                 ->where('is_active', true)

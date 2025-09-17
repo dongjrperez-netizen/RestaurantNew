@@ -11,12 +11,18 @@ class DishIngredient extends Model
     protected $fillable = [
         'dish_id',
         'ingredient_id',
-        'quantity_needed',
-        'unit_of_measure',
+        'ingredient_name',
+        'quantity',
+        'unit',
+        'cost_per_unit',
+        'is_optional',
+        'preparation_note',
     ];
 
     protected $casts = [
-        'quantity_needed' => 'decimal:4',
+        'quantity' => 'decimal:3',
+        'cost_per_unit' => 'decimal:2',
+        'is_optional' => 'boolean',
     ];
 
     public function dish()

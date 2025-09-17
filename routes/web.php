@@ -20,6 +20,9 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SupplierBillController;
 use App\Http\Controllers\SupplierPaymentController;
+use App\Http\Controllers\MenuController;
+use App\Http\Controllers\MenuCategoryController;
+use App\Http\Controllers\ImageUploadController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -86,7 +89,7 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function(){
 });
 
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function(){
-    Route::get('/supplier', [SuppliersController:: class, 'Index'])->name('supplier.index');
+    Route::get('/supplier', [SupplierController:: class, 'index'])->name('supplier.index');
     Route::get('/reorder', [SuppliersController:: class, 'Reorder'])->name('supplier.reorder');
     Route::get('/orderedRequested', [SuppliersController:: class, 'OrderedRequested'])->name('supplier.OrderedRequested');
   
@@ -161,6 +164,32 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::get('/payments/create/{billId}', [SupplierPaymentController::class, 'create'])->name('payments.create-for-bill');
     Route::post('/payments/{id}/cancel', [SupplierPaymentController::class, 'cancel'])->name('payments.cancel');
     Route::get('/api/bills/{id}/details', [SupplierPaymentController::class, 'getBillDetails'])->name('bills.api-details');
+});
+
+// Menu Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('menu', MenuController::class);
+    Route::get('/menu-analytics', [MenuController::class, 'analytics'])->name('menu.analytics');
+    Route::post('/menu/{dish}/status', [MenuController::class, 'updateStatus'])->name('menu.update-status');
+    Route::resource('menu-categories', MenuCategoryController::class)->except(['create', 'show', 'edit']);
+});
+
+// Image Upload Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::post('/api/images/upload', [ImageUploadController::class, 'upload'])->name('images.upload');
+    Route::delete('/api/images/delete', [ImageUploadController::class, 'delete'])->name('images.delete');
+    Route::get('/api/images', [ImageUploadController::class, 'index'])->name('images.index');
+});
+
+// Customer Order Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::resource('orders', \App\Http\Controllers\CustomerOrderController::class);
+    Route::get('/orders/kitchen', [\App\Http\Controllers\CustomerOrderController::class, 'kitchen'])->name('orders.kitchen');
+    Route::get('/orders/analytics', [\App\Http\Controllers\CustomerOrderController::class, 'analytics'])->name('orders.analytics');
+    Route::post('/orders/{order}/status', [\App\Http\Controllers\CustomerOrderController::class, 'updateStatus'])->name('orders.update-status');
+    Route::post('/orders/{order}/cancel', [\App\Http\Controllers\CustomerOrderController::class, 'cancel'])->name('orders.cancel');
+    Route::post('/orders/check-inventory', [\App\Http\Controllers\CustomerOrderController::class, 'checkInventory'])->name('orders.check-inventory');
+    Route::post('/order-items/{orderItem}/status', [\App\Http\Controllers\CustomerOrderController::class, 'updateItemStatus'])->name('order-items.update-status');
 });
 
 

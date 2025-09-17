@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onBeforeMount } from 'vue'
-import { Link } from '@inertiajs/vue3'
+import { Link, router } from '@inertiajs/vue3'
 import {
   Users, UserRound, Box, ClipboardList,
   UtensilsCrossed, ShoppingCart, Truck,
@@ -40,15 +40,18 @@ const navItems = [
     title: "Menu Management",
     icon: UtensilsCrossed,
     children: [
-      { title: "Menu List", href: "/menu/list", icon: ClipboardList },
-   
+      { title: "Menu Items", href: "/menu", icon: ClipboardList },
+      { title: "Categories", href: "/menu-categories", icon: Folder },
+      { title: "Analytics", href: "/menu-analytics", icon: LayoutGrid },
     ]
   },
   {
     title: "POS Management",
     icon: ShoppingCart,
     children: [
-      { title: "Tables", href: "/pos/tables", icon: Box },
+      { title: "Orders", href: "/orders", icon: ClipboardList },
+      { title: "Kitchen Display", href: "/orders/kitchen", icon: UtensilsCrossed },
+      { title: "Order Analytics", href: "/orders/analytics", icon: LayoutGrid },
     ]
   },
   {
@@ -90,6 +93,13 @@ onBeforeMount(() => {
 watch(openCollapsibles, (val) => {
   sessionStorage.setItem('sidebarState', JSON.stringify(val))
 }, { deep: true })
+
+const handleNavigation = (href: string) => {
+  console.log('Navigating to:', href)
+  // Force full browser navigation for all sidebar links to avoid Inertia issues
+  console.log('Using window.location for:', href)
+  window.location.href = href
+}
 </script>
 
 <template>
@@ -103,11 +113,9 @@ watch(openCollapsibles, (val) => {
               
               <!-- Single link -->
               <SidebarMenuItem v-if="item.href">
-                <SidebarMenuButton asChild>
-                  <Link :href="item.href" :preserve-state="true">
-                    <component :is="item.icon" class="mr-2 h-4 w-4"/>
-                    <span>{{ item.title }}</span>
-                  </Link>
+                <SidebarMenuButton @click="handleNavigation(item.href)">
+                  <component :is="item.icon" class="mr-2 h-4 w-4"/>
+                  <span>{{ item.title }}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
 
@@ -127,11 +135,9 @@ watch(openCollapsibles, (val) => {
                   <CollapsibleContent>
                     <SidebarMenuSub>
                       <SidebarMenuSubItem v-for="child in item.children" :key="child.title">
-                        <SidebarMenuButton asChild>
-                          <Link :href="child.href" :preserve-state="true">
-                            <component :is="child.icon" class="mr-2 h-4 w-4" />
-                            <span>{{ child.title }}</span>
-                          </Link>
+                        <SidebarMenuButton @click="handleNavigation(child.href)">
+                          <component :is="child.icon" class="mr-2 h-4 w-4" />
+                          <span>{{ child.title }}</span>
                         </SidebarMenuButton>
                       </SidebarMenuSubItem>
                     </SidebarMenuSub>

@@ -262,7 +262,7 @@ const orderTotal = () => form.items.reduce((total, item) => total + (item.quanti
 
                 <!-- Item Total & Remove -->
                 <div class="flex justify-between items-center">
-                  <p class="font-semibold">Item Total: ${{ itemTotal(item) }}</p>
+                  <p class="font-semibold">Item Total: ₱{{ itemTotal(item) }}</p>
                   <Button type="button" variant="destructive" size="sm" @click="removeItem(index)" :disabled="form.items.length <= 1">
                     <SquareX class="h-4 w-4 mr-1" /> Remove
                   </Button>
@@ -272,7 +272,7 @@ const orderTotal = () => form.items.reduce((total, item) => total + (item.quanti
 
             <!-- Order Total -->
             <div class="text-right font-bold text-xl">
-              Order Total: ${{ orderTotal() }}
+              Order Total: ₱{{ orderTotal() }}
             </div>
 
             <!-- Actions -->
