@@ -11,7 +11,6 @@ use App\Models\User;
 use App\Notifications\PurchaseOrderApproved;
 use App\Notifications\PurchaseOrderSubmitted;
 use App\Services\BillingService;
-use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
@@ -151,7 +150,7 @@ class PurchaseOrderController extends Controller
                         $ingredientName = Ingredients::find($ingredientId)->ingredient_name ?? 'this ingredient';
                         $fail("The ordered quantity for {$ingredientName} cannot exceed the supplier's maximum order quantity of {$ingredientSupplier->minimum_order_quantity} {$ingredientSupplier->package_unit}.");
                     }
-                }
+                },
             ],
             'items.*.unit_price' => 'required|numeric|min:0.01',
             'items.*.unit_of_measure' => 'required|string|max:50',
@@ -292,7 +291,7 @@ class PurchaseOrderController extends Controller
                         $ingredientName = Ingredients::find($ingredientId)->ingredient_name ?? 'this ingredient';
                         $fail("The ordered quantity for {$ingredientName} cannot exceed the supplier's maximum order quantity of {$ingredientSupplier->minimum_order_quantity} {$ingredientSupplier->package_unit}.");
                     }
-                }
+                },
             ],
             'items.*.unit_price' => 'required|numeric|min:0.01',
             'items.*.unit_of_measure' => 'required|string|max:50',

@@ -17,11 +17,13 @@ return new class extends Migration
             $table->unsignedBigInteger('ingredient_id');
             $table->decimal('quantity_needed', 10, 4);
             $table->string('unit_of_measure')->nullable();
+            $table->boolean('is_optional')->default(false);
             $table->timestamps();
 
             $table->foreign('dish_id')->references('dish_id')->on('dishes')->onDelete('cascade');
             $table->foreign('ingredient_id')->references('ingredient_id')->on('ingredients')->onDelete('cascade');
             $table->unique(['dish_id', 'ingredient_id']);
+            $table->index(['dish_id', 'is_optional']);
         });
     }
 

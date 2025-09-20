@@ -37,13 +37,13 @@ const notificationType = ref<'success' | 'error'>('success');
 const page = usePage();
 
 // Watch for flash messages
-watch(() => page.props.flash?.success, (success) => {
+watch(() => (page.props as any).flash?.success, (success) => {
   if (success) {
     showSuccessNotification('Email sent!');
   }
 });
 
-watch(() => page.props.flash?.error, (error) => {
+watch(() => (page.props as any).flash?.error, (error) => {
   if (error) {
     showErrorNotification(error as string);
   }
@@ -183,7 +183,7 @@ const copyInvitationLink = async (supplier: Supplier) => {
       </div>
     </Transition>
 
-    <div class="space-y-6">
+    <div class="space-y-6 mx-8">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>

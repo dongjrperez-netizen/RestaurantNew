@@ -14,13 +14,16 @@ return new class extends Migration
         Schema::create('dishes', function (Blueprint $table) {
             $table->id('dish_id');
             $table->unsignedBigInteger('restaurant_id');
+            $table->unsignedBigInteger('category_id')->nullable();
             $table->string('dish_name');
             $table->text('description')->nullable();
-            $table->decimal('selling_price', 10, 2);
-            $table->string('category')->nullable();
+            $table->string('image_url', 500)->nullable();
+            $table->enum('status', ['draft', 'active', 'inactive', 'archived'])->default('draft');
+            $table->decimal('price', 10, 2)->nullable();
             $table->boolean('is_available')->default(true);
             $table->timestamps();
 
+            $table->foreign('category_id')->references('category_id')->on('menu_categories')->onDelete('set null');
             $table->foreign('restaurant_id')->references('id')->on('restaurant_data')->onDelete('cascade');
             $table->index(['restaurant_id', 'is_available']);
         });

@@ -47,8 +47,8 @@ const navItems = [
     title: "Menu Management",
     icon: UtensilsCrossed,
     children: [
-      { title: "Menu List", href: "/menu/list", icon: ClipboardList },
-      { title: "Menu Planning", href: "/menu-plans", icon: Calendar },
+      { title: "Menu Items", href: "/menu", icon: ClipboardList },
+      { title: "Menu Planning", href: "/menu-planning", icon: Calendar },
     ]
   },
   {

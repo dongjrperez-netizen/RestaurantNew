@@ -15,13 +15,14 @@ class MenuPlanController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
         }
 
-        $menuPlans = MenuPlan::with(['dishes'])
+        $menuPlans = MenuPlan::with(['menuPlanDishes.dish'])
+            ->withCount('menuPlanDishes as dishes_count')
             ->forRestaurant($restaurantId)
             ->orderBy('created_at', 'desc')
             ->paginate(10);
@@ -34,14 +35,14 @@ class MenuPlanController extends Controller
     public function create()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
         }
 
         $dishes = Dish::where('restaurant_id', $restaurantId)
-            ->where('is_available', true)
+            ->where('status', 'active')
             ->orderBy('dish_name')
             ->get();
 
@@ -53,7 +54,7 @@ class MenuPlanController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
@@ -98,14 +99,14 @@ class MenuPlanController extends Controller
             }
         }
 
-        return redirect()->route('menu-plans.show', $menuPlan->menu_plan_id)
+        return redirect()->route('menu-planning.show', $menuPlan->menu_plan_id)
             ->with('success', 'Menu plan created successfully.');
     }
 
     public function show($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         $menuPlan = MenuPlan::with(['dishes', 'menuPlanDishes.dish'])
             ->forRestaurant($restaurantId)
@@ -119,14 +120,14 @@ class MenuPlanController extends Controller
     public function edit($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         $menuPlan = MenuPlan::with(['menuPlanDishes.dish'])
             ->forRestaurant($restaurantId)
             ->findOrFail($id);
 
         $dishes = Dish::where('restaurant_id', $restaurantId)
-            ->where('is_available', true)
+            ->where('status', 'active')
             ->orderBy('dish_name')
             ->get();
 
@@ -139,7 +140,7 @@ class MenuPlanController extends Controller
     public function update(Request $request, $id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
 
@@ -185,26 +186,26 @@ class MenuPlanController extends Controller
             }
         }
 
-        return redirect()->route('menu-plans.show', $menuPlan->menu_plan_id)
+        return redirect()->route('menu-planning.show', $menuPlan->menu_plan_id)
             ->with('success', 'Menu plan updated successfully.');
     }
 
     public function destroy($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
         $menuPlan->delete();
 
-        return redirect()->route('menu-plans.index')
+        return redirect()->route('menu-planning.index')
             ->with('success', 'Menu plan deleted successfully.');
     }
 
     public function getActiveMenuPlan(Request $request)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         $date = $request->get('date', now()->format('Y-m-d'));
         $mealType = $request->get('meal_type');
@@ -237,7 +238,7 @@ class MenuPlanController extends Controller
     public function toggleActive($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_data->id ?? null;
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
         $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
         $menuPlan->update(['is_active' => ! $menuPlan->is_active]);

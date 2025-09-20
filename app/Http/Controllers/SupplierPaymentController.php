@@ -294,7 +294,7 @@ class SupplierPaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Payment amount cannot exceed outstanding amount.',
-                'errors' => ['payment_amount' => ['Payment amount cannot exceed outstanding amount.']]
+                'errors' => ['payment_amount' => ['Payment amount cannot exceed outstanding amount.']],
             ], 422);
         }
 
@@ -339,7 +339,7 @@ class SupplierPaymentController extends Controller
                 'data' => [
                     'payment' => $payment->fresh(['bill', 'supplier', 'createdBy']),
                     'bill' => $bill->fresh(),
-                ]
+                ],
             ]);
 
         } catch (\Exception $e) {
@@ -347,7 +347,7 @@ class SupplierPaymentController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'Error recording payment: ' . $e->getMessage(),
+                'message' => 'Error recording payment: '.$e->getMessage(),
             ], 500);
         }
     }

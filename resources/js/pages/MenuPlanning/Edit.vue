@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { ref, computed, watch } from 'vue';
@@ -20,8 +19,31 @@ interface Dish {
   price?: number;
 }
 
+interface MenuPlanDish {
+  id: number;
+  dish_id: number;
+  planned_quantity: number;
+  meal_type: string;
+  planned_date: string;
+  day_of_week?: number;
+  notes?: string;
+  dish: Dish;
+}
+
+interface MenuPlan {
+  menu_plan_id: number;
+  plan_name: string;
+  plan_type: 'daily' | 'weekly';
+  start_date: string;
+  end_date: string;
+  description?: string;
+  is_active: boolean;
+  menu_plan_dishes: MenuPlanDish[];
+}
+
 interface Props {
   dishes: Dish[];
+  menuPlan: MenuPlan;
 }
 
 const props = defineProps<Props>();
@@ -29,7 +51,8 @@ const props = defineProps<Props>();
 const breadcrumbs: BreadcrumbItem[] = [
   { title: 'Dashboard', href: '/dashboard' },
   { title: 'Menu Planning', href: '/menu-planning' },
-  { title: 'Create Plan', href: '/menu-planning/create' },
+  { title: props.menuPlan.plan_name, href: `/menu-planning/${props.menuPlan.menu_plan_id}` },
+  { title: 'Edit', href: `/menu-planning/${props.menuPlan.menu_plan_id}/edit` },
 ];
 
 interface PlanDish {
@@ -42,13 +65,24 @@ interface PlanDish {
   notes?: string;
 }
 
+// Convert existing menu plan dishes to the format we need
+const existingDishes: PlanDish[] = props.menuPlan.menu_plan_dishes.map(mpd => ({
+  dish_id: mpd.dish_id,
+  dish_name: mpd.dish.dish_name,
+  planned_quantity: mpd.planned_quantity,
+  meal_type: mpd.meal_type || '',
+  planned_date: mpd.planned_date.split('T')[0], // Extract date part
+  day_of_week: mpd.day_of_week,
+  notes: mpd.notes || '',
+}));
+
 const form = useForm({
-  plan_name: '',
-  plan_type: 'daily' as 'daily' | 'weekly',
-  start_date: '',
-  end_date: '',
-  description: '',
-  dishes: [] as PlanDish[],
+  plan_name: props.menuPlan.plan_name,
+  plan_type: props.menuPlan.plan_type as 'daily' | 'weekly',
+  start_date: props.menuPlan.start_date,
+  end_date: props.menuPlan.end_date,
+  description: props.menuPlan.description || '',
+  dishes: existingDishes,
 });
 
 const selectedDishId = ref('');
@@ -58,58 +92,22 @@ const selectedNotes = ref('');
 const selectedFrequency = ref('');
 const selectedDayOfWeek = ref('');
 
-
 const planTypes = [
   { value: 'daily', label: 'Daily Plan' },
   { value: 'weekly', label: 'Weekly Plan' },
 ];
 
-// Set default dates
-const today = new Date().toISOString().split('T')[0];
-
-// Calculate end date for weekly plan (find the next Sunday to complete the week)
-const getWeeklyEndDate = (startDate: string) => {
-  const start = new Date(startDate);
-  const dayOfWeek = start.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-
-  // Calculate days until next Sunday (0)
-  const daysUntilSunday = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + daysUntilSunday);
-  return end.toISOString().split('T')[0];
-};
-
-// Initialize dates based on plan type
-const initializeDates = () => {
-  if (!form.start_date) {
-    form.start_date = today;
-  }
-  if (!form.end_date) {
-    form.end_date = form.plan_type === 'daily' ? form.start_date : getWeeklyEndDate(form.start_date);
-  }
-};
-
-// Initialize on component mount
-initializeDates();
-
 // Watch plan type changes to adjust date range
 watch(() => form.plan_type, (newType) => {
   if (newType === 'daily') {
     form.end_date = form.start_date;
-  } else {
-    // For weekly plan, set end date to 7 days from start date
-    form.end_date = getWeeklyEndDate(form.start_date);
   }
 });
 
-// Watch start date changes to adjust end date
+// Watch start date changes for daily plans
 watch(() => form.start_date, (newDate) => {
   if (form.plan_type === 'daily') {
     form.end_date = newDate;
-  } else if (form.plan_type === 'weekly' && newDate) {
-    // For weekly plans, automatically set end date to 7 days from start
-    form.end_date = getWeeklyEndDate(newDate);
   }
 });
 
@@ -163,9 +161,9 @@ const addDishToPlan = () => {
         dish_id: dish.dish_id,
         dish_name: dish.dish_name,
         planned_quantity: selectedQuantity.value,
-        meal_type: null,
+        meal_type: '',
         planned_date: date,
-        day_of_week: new Date(date).getDay() + 1,
+        day_of_week: new Date(date).getDay(),
         notes: selectedNotes.value,
       });
     }
@@ -194,7 +192,6 @@ const removeDishGroup = (group: any) => {
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString();
 };
-
 
 // Group dishes for better display
 const groupedDishes = computed(() => {
@@ -238,56 +235,19 @@ const groupedDishes = computed(() => {
 });
 
 const submit = () => {
-  console.log('🚀 Starting form submission...');
-
-  form.post('/menu-planning', {
-    onStart: () => {
-      console.log('📡 Request started');
-    },
-    onSuccess: (page) => {
-      console.log('✅ SUCCESS: Menu plan created successfully!');
-    },
-    onError: (errors) => {
-      console.error('❌ FORM SUBMISSION FAILED!');
-      console.error('Server returned these errors:', errors);
-
-      // Show errors in alert
-      if (Object.keys(errors).length > 0) {
-        const errorList = Object.entries(errors)
-          .map(([field, message]) => `• ${field}: ${message}`)
-          .join('\n');
-
-        alert(`❌ FORM ERRORS:\n\n${errorList}`);
-      } else {
-        alert('❌ UNKNOWN ERROR: Form submission failed but no specific errors were returned.');
-      }
-    },
-    onFinish: () => {
-      console.log('🏁 Request completed');
-    }
-  });
+  form.put(`/menu-planning/${props.menuPlan.menu_plan_id}`);
 };
 </script>
 
 <template>
-  <Head title="Create Menu Plan" />
+  <Head title="Edit Menu Plan" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
     <div class="max-w-6xl mx-auto space-y-8 px-6">
       <!-- Header -->
       <div>
-        <h1 class="text-3xl font-bold tracking-tight">Create Menu Plan</h1>
-        <p class="text-muted-foreground">Plan your dishes for daily or weekly schedules</p>
-      </div>
-
-      <!-- Error Messages Only -->
-      <div v-if="Object.keys(form.errors).length > 0" class="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-        <h3 class="text-red-800 font-bold mb-2">❌ Error Messages:</h3>
-        <div class="space-y-1">
-          <div v-for="(error, field) in form.errors" :key="field" class="text-red-700">
-            <strong>{{ field }}:</strong> {{ error }}
-          </div>
-        </div>
+        <h1 class="text-3xl font-bold tracking-tight">Edit Menu Plan</h1>
+        <p class="text-muted-foreground">Update your daily or weekly menu schedule</p>
       </div>
 
       <form @submit.prevent="submit" class="space-y-8">
@@ -549,16 +509,12 @@ const submit = () => {
 
         <!-- Actions -->
         <div class="flex justify-end space-x-2">
-          <Button type="button" variant="outline" @click="$inertia.visit('/menu-planning')">
+          <Button type="button" variant="outline" @click="$inertia.visit(`/menu-planning/${menuPlan.menu_plan_id}`)">
             Cancel
           </Button>
-          <Button
-            type="submit"
-            :disabled="form.processing || !form.plan_name || !form.start_date || !form.end_date"
-            @click="console.log('🎯 Submit button clicked!')"
-          >
+          <Button type="submit" :disabled="form.processing">
             <Clock v-if="form.processing" class="w-4 h-4 mr-2 animate-spin" />
-            {{ form.processing ? 'Creating...' : 'Create Menu Plan' }}
+            {{ form.processing ? 'Updating...' : 'Update Menu Plan' }}
           </Button>
         </div>
       </form>

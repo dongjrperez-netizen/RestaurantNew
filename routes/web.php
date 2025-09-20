@@ -9,7 +9,12 @@ use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ImageUploadController;
 use App\Http\Controllers\KitchenController;
+use App\Http\Controllers\MenuController;
+use App\Http\Controllers\MenuCategoryController;
+use App\Http\Controllers\MenuPlanController;
+use App\Http\Controllers\MenuPreparationController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RenewSubscriptionController;
@@ -184,13 +189,12 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::get('/pos/customer-order', function () {
         return Inertia::render('POS/CustomerOrder');
     })->name('pos.customer-order');
-});
 
-// Menu Planning Routes
-Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
-    Route::resource('menu-plans', \App\Http\Controllers\MenuPlanController::class);
-    Route::post('/menu-plans/{id}/toggle-active', [\App\Http\Controllers\MenuPlanController::class, 'toggleActive'])->name('menu-plans.toggle-active');
-    Route::get('/api/menu-plans/active', [\App\Http\Controllers\MenuPlanController::class, 'getActiveMenuPlan'])->name('menu-plans.active');
+    // Table Management Routes
+    Route::prefix('pos')->name('pos.')->group(function () {
+        Route::resource('tables', App\Http\Controllers\TableController::class);
+        Route::post('/tables/{table}/status', [App\Http\Controllers\TableController::class, 'updateStatus'])->name('tables.update-status');
+    });
 });
 
 Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
@@ -226,6 +230,9 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::get('/account/update', [AccountUpdateController::class, 'show'])->name('account.update.show');
     Route::post('/account/update', [AccountUpdateController::class, 'update'])->name('account.update');
     Route::get('/api/account/user', [AccountUpdateController::class, 'fetchUser']);
+
+    // Image upload API
+    Route::post('/api/images/upload', [ImageUploadController::class, 'upload'])->name('api.images.upload');
 });
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/subscriptions/renew', [RenewSubscriptionController::class, 'show'])->name('subscriptions.renew');
@@ -290,6 +297,67 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::post('/payments/{id}/cancel', [SupplierPaymentController::class, 'cancel'])->name('payments.cancel');
     Route::get('/api/bills/{id}/details', [SupplierPaymentController::class, 'getBillDetails'])->name('bills.api-details');
 });
+
+// Menu Preparation Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::get('/menu-preparation', [MenuPreparationController::class, 'index'])->name('menu-preparation.index');
+    Route::get('/menu-preparation/create', [MenuPreparationController::class, 'create'])->name('menu-preparation.create');
+    Route::post('/menu-preparation', [MenuPreparationController::class, 'store'])->name('menu-preparation.store');
+    Route::get('/menu-preparation/{id}', [MenuPreparationController::class, 'show'])->name('menu-preparation.show');
+    Route::get('/menu-preparation/{id}/duplicate', [MenuPreparationController::class, 'duplicate'])->name('menu-preparation.duplicate');
+    Route::delete('/menu-preparation/{id}', [MenuPreparationController::class, 'destroy'])->name('menu-preparation.destroy');
+
+    // Preparation order actions
+    Route::post('/menu-preparation/{id}/start', [MenuPreparationController::class, 'startPreparation'])->name('menu-preparation.start');
+    Route::post('/menu-preparation/{id}/complete', [MenuPreparationController::class, 'completePreparation'])->name('menu-preparation.complete');
+
+    // Individual item actions
+    Route::post('/menu-preparation/{orderId}/items/{itemId}/start', [MenuPreparationController::class, 'startItem'])->name('menu-preparation.items.start');
+    Route::post('/menu-preparation/{orderId}/items/{itemId}/complete', [MenuPreparationController::class, 'completeItem'])->name('menu-preparation.items.complete');
+
+    // API routes for real-time inventory checking
+    Route::get('/api/menu-preparation/{id}/inventory-status', [MenuPreparationController::class, 'getInventoryStatus'])->name('menu-preparation.inventory-status');
+
+    // Purchase order creation from shortages
+    Route::post('/menu-preparation/{id}/create-purchase-orders', [MenuPreparationController::class, 'createPurchaseOrderFromShortages'])->name('menu-preparation.create-purchase-orders');
+});
+
+
+// Menu Management Routes
+Route::middleware(['auth', 'verified', 'check.subscription'])->group(function () {
+    Route::get('/menu', [MenuController::class, 'index'])->name('menu.index');
+    Route::get('/menu/create', [MenuController::class, 'create'])->name('menu.create');
+    Route::post('/menu', [MenuController::class, 'store'])->name('menu.store');
+    Route::get('/menu/{dish}', [MenuController::class, 'show'])->name('menu.show');
+    Route::get('/menu/{dish}/edit', [MenuController::class, 'edit'])->name('menu.edit');
+    Route::put('/menu/{dish}', [MenuController::class, 'update'])->name('menu.update');
+    Route::delete('/menu/{dish}', [MenuController::class, 'destroy'])->name('menu.destroy');
+    Route::post('/menu/{dish}/status', [MenuController::class, 'updateStatus'])->name('menu.update-status');
+    Route::get('/menu-analytics', [MenuController::class, 'analytics'])->name('menu.analytics');
+
+    // Menu Categories
+    Route::get('/menu-categories', [MenuCategoryController::class, 'index'])->name('menu-categories.index');
+    Route::post('/menu-categories', [MenuCategoryController::class, 'store'])->name('menu-categories.store');
+    Route::put('/menu-categories/{category}', [MenuCategoryController::class, 'update'])->name('menu-categories.update');
+    Route::delete('/menu-categories/{category}', [MenuCategoryController::class, 'destroy'])->name('menu-categories.destroy');
+    Route::post('/menu-categories/{category}/status', [MenuCategoryController::class, 'updateStatus'])->name('menu-categories.update-status');
+    Route::post('/menu-categories/reorder', [MenuCategoryController::class, 'reorder'])->name('menu-categories.reorder');
+
+    // Menu Planning Routes
+    Route::get('/menu-planning', [MenuPlanController::class, 'index'])->name('menu-planning.index');
+    Route::get('/menu-planning/create', [MenuPlanController::class, 'create'])->name('menu-planning.create');
+    Route::post('/menu-planning', [MenuPlanController::class, 'store'])->name('menu-planning.store');
+    Route::get('/menu-planning/{menuPlan}', [MenuPlanController::class, 'show'])->name('menu-planning.show');
+    Route::get('/menu-planning/{menuPlan}/edit', [MenuPlanController::class, 'edit'])->name('menu-planning.edit');
+    Route::put('/menu-planning/{menuPlan}', [MenuPlanController::class, 'update'])->name('menu-planning.update');
+    Route::delete('/menu-planning/{menuPlan}', [MenuPlanController::class, 'destroy'])->name('menu-planning.destroy');
+    Route::post('/menu-planning/{menuPlan}/toggle-active', [MenuPlanController::class, 'toggleActive'])->name('menu-planning.toggle-active');
+    Route::get('/api/menu-planning/active', [MenuPlanController::class, 'getActiveMenuPlan'])->name('menu-planning.active');
+});
+
+// Customer Menu Routes (public access)
+Route::get('/customer-menu', [App\Http\Controllers\CustomerMenuController::class, 'index'])->name('customer-menu.index');
+
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';

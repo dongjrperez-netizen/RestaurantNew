@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\SupplierBill;
-use App\Models\SupplierPayment;
 use App\Services\BillingService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +14,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Srmklive\PayPal\Services\PayPal as PayPalClient;
-use Barryvdh\DomPDF\Facade\Pdf;
 
 class SupplierBillController extends Controller
 {
@@ -552,7 +551,7 @@ class SupplierBillController extends Controller
 
             Log::info('PayPal client initialized successfully', [
                 'mode' => $paypalConfig['mode'] ?? 'sandbox',
-                'has_access_token' => !empty($accessToken)
+                'has_access_token' => ! empty($accessToken),
             ]);
 
             $returnUrl = route('bills.paypal.success', ['bill' => $bill->bill_id]);
@@ -567,7 +566,7 @@ class SupplierBillController extends Controller
                             'value' => number_format($validated['payment_amount'], 2, '.', ''),
                         ],
                         'description' => "Payment for Bill #{$bill->bill_number} - {$bill->supplier->supplier_name}",
-                        'invoice_id' => $bill->bill_number . '-' . time(),
+                        'invoice_id' => $bill->bill_number.'-'.time(),
                     ],
                 ],
                 'application_context' => [
@@ -588,10 +587,10 @@ class SupplierBillController extends Controller
                 'links_count' => isset($response['links']) ? count($response['links']) : 0,
             ]);
 
-            if (!isset($response['id']) || !isset($response['links'])) {
+            if (! isset($response['id']) || ! isset($response['links'])) {
                 Log::error('PayPal createOrder response missing required fields', [
                     'response' => $response,
-                    'bill_id' => $bill->bill_id
+                    'bill_id' => $bill->bill_id,
                 ]);
                 throw new \Exception('Invalid PayPal response - missing ID or links');
             }
@@ -615,7 +614,7 @@ class SupplierBillController extends Controller
                 }
             }
 
-            if (!$approvalUrl) {
+            if (! $approvalUrl) {
                 throw new \Exception('PayPal approval URL not found');
             }
 
@@ -633,12 +632,12 @@ class SupplierBillController extends Controller
                 'bill_id' => $bill->bill_id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'validated_data' => $validated
+                'validated_data' => $validated,
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to initiate PayPal payment: ' . $e->getMessage(),
+                'message' => 'Failed to initiate PayPal payment: '.$e->getMessage(),
             ], 500);
         }
     }
@@ -655,15 +654,15 @@ class SupplierBillController extends Controller
             'bill_id' => $bill->bill_id,
             'order_id' => $orderId,
             'request_params' => $request->all(),
-            'session_data' => $paymentData
+            'session_data' => $paymentData,
         ]);
 
-        if (!$paymentData || $paymentData['bill_id'] != $bill->bill_id) {
+        if (! $paymentData || $paymentData['bill_id'] != $bill->bill_id) {
             return redirect()->route('bills.show', $bill->bill_id)
                 ->with('error', 'Invalid payment session data');
         }
 
-        if (!$orderId) {
+        if (! $orderId) {
             return redirect()->route('bills.show', $bill->bill_id)
                 ->with('error', 'Missing PayPal order ID');
         }
@@ -691,14 +690,14 @@ class SupplierBillController extends Controller
                 'full_response' => $response,
             ]);
 
-            if (!isset($response['status']) || $response['status'] !== 'COMPLETED') {
+            if (! isset($response['status']) || $response['status'] !== 'COMPLETED') {
                 Log::error('PayPal payment capture failed - detailed response', [
                     'expected_status' => 'COMPLETED',
                     'actual_status' => $response['status'] ?? 'missing',
                     'response' => $response,
                     'order_id' => $orderId,
                 ]);
-                throw new \Exception('PayPal payment capture failed - Status: ' . ($response['status'] ?? 'unknown'));
+                throw new \Exception('PayPal payment capture failed - Status: '.($response['status'] ?? 'unknown'));
             }
 
             // Use the BillingService to record payment consistently
@@ -724,7 +723,7 @@ class SupplierBillController extends Controller
             ]);
 
             return redirect()->route('bills.show', $bill->bill_id)
-                ->with('error', 'Payment processing failed: ' . $e->getMessage());
+                ->with('error', 'Payment processing failed: '.$e->getMessage());
         }
     }
 
@@ -749,7 +748,7 @@ class SupplierBillController extends Controller
         $bill->load([
             'supplier',
             'purchaseOrder.items.ingredient',
-            'payments.createdBy'
+            'payments.createdBy',
         ]);
 
         // Generate PDF from the view
@@ -767,7 +766,7 @@ class SupplierBillController extends Controller
         ]);
 
         // Generate filename
-        $filename = 'bill-' . $bill->bill_number . '-' . date('Y-m-d') . '.pdf';
+        $filename = 'bill-'.$bill->bill_number.'-'.date('Y-m-d').'.pdf';
 
         // Return PDF download response
         return $pdf->download($filename);
