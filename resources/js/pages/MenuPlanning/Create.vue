@@ -9,19 +9,43 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import Badge from '@/components/ui/badge/Badge.vue';
 import { type BreadcrumbItem } from '@/types';
 import { ref, computed, watch } from 'vue';
 import { Plus, Trash2, Calendar, CalendarDays, Clock } from 'lucide-vue-next';
+
+interface DishIngredient {
+  ingredient_id: number;
+  ingredient_name: string;
+  base_unit: string;
+  current_stock: number;
+  cost_per_unit: number;
+  pivot: {
+    quantity_needed: number;
+    unit_of_measure: string;
+    is_optional: boolean;
+  };
+}
 
 interface Dish {
   dish_id: number;
   dish_name: string;
   description?: string;
   price?: number;
+  ingredients?: DishIngredient[];
+}
+
+interface Ingredient {
+  ingredient_id: number;
+  ingredient_name: string;
+  base_unit: string;
+  current_stock: number;
+  cost_per_unit: number;
 }
 
 interface Props {
   dishes: Dish[];
+  ingredients: Ingredient[];
 }
 
 const props = defineProps<Props>();
@@ -40,84 +64,105 @@ interface PlanDish {
   planned_date: string;
   day_of_week?: number;
   notes?: string;
+  [key: string]: any;
 }
 
 const form = useForm({
   plan_name: '',
-  plan_type: 'daily' as 'daily' | 'weekly',
   start_date: '',
   end_date: '',
   description: '',
   dishes: [] as PlanDish[],
 });
 
-const selectedDishId = ref('');
-const selectedQuantity = ref(1);
-const selectedDate = ref('');
-const selectedNotes = ref('');
-const selectedFrequency = ref('');
-const selectedDayOfWeek = ref('');
+// Add computed property to determine plan type based on date range
+const planType = computed(() => {
+  if (!form.start_date || !form.end_date) return 'daily';
+  const startDate = new Date(form.start_date);
+  const endDate = new Date(form.end_date);
+  const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  return daysDiff === 0 ? 'daily' : 'weekly';
+});
+
+const selectedDishId = ref<string>('');
+const selectedQuantity = ref<number>(1);
+const selectedDate = ref<string>('');
+const selectedNotes = ref<string>('');
+const selectedFrequency = ref<string>('');
+const selectedDayOfWeek = ref<string>('');
 
 
-const planTypes = [
-  { value: 'daily', label: 'Daily Plan' },
-  { value: 'weekly', label: 'Weekly Plan' },
-];
+// planTypes array removed - now using computed planType
 
 // Set default dates
 const today = new Date().toISOString().split('T')[0];
 
-// Calculate end date for weekly plan (find the next Sunday to complete the week)
+// Calculate end date for weekly plan (exactly 7 days: start + 6 days)
 const getWeeklyEndDate = (startDate: string) => {
   const start = new Date(startDate);
-  const dayOfWeek = start.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-
-  // Calculate days until next Sunday (0)
-  const daysUntilSunday = dayOfWeek === 0 ? 7 : 7 - dayOfWeek;
-
   const end = new Date(start);
-  end.setDate(start.getDate() + daysUntilSunday);
+  end.setDate(start.getDate() + 6); // Add 6 days for a 7-day week (start + 6 = 7 total days)
   return end.toISOString().split('T')[0];
 };
 
-// Initialize dates based on plan type
+// Initialize dates
 const initializeDates = () => {
   if (!form.start_date) {
     form.start_date = today;
   }
   if (!form.end_date) {
-    form.end_date = form.plan_type === 'daily' ? form.start_date : getWeeklyEndDate(form.start_date);
+    form.end_date = form.start_date; // Default to daily (same day)
   }
 };
 
 // Initialize on component mount
 initializeDates();
 
-// Watch plan type changes to adjust date range
-watch(() => form.plan_type, (newType) => {
-  if (newType === 'daily') {
-    form.end_date = form.start_date;
-  } else {
-    // For weekly plan, set end date to 7 days from start date
-    form.end_date = getWeeklyEndDate(form.start_date);
+// Watch start date changes to auto-set end date if not manually changed
+watch(() => form.start_date, (newDate) => {
+  if (newDate && !form.end_date) {
+    form.end_date = newDate; // Default to same day if no end date set
   }
 });
 
-// Watch start date changes to adjust end date
-watch(() => form.start_date, (newDate) => {
-  if (form.plan_type === 'daily') {
-    form.end_date = newDate;
-  } else if (form.plan_type === 'weekly' && newDate) {
-    // For weekly plans, automatically set end date to 7 days from start
-    form.end_date = getWeeklyEndDate(newDate);
-  }
-});
+// Validate if adding a dish will cause stock shortage
+const validateStockForDish = (dish: Dish, quantity: number) => {
+  const missingIngredients: string[] = [];
+  let sufficient = true;
+
+  if (!dish.ingredients) return { sufficient: true, missingIngredients: [] };
+
+  dish.ingredients.forEach(dishIngredient => {
+    if (dishIngredient.pivot.is_optional) return;
+
+    // Calculate total needed including current plan + new dish
+    const currentRequirement = ingredientRequirements.value[dishIngredient.ingredient_id]?.total_needed || 0;
+    const additionalNeed = dishIngredient.pivot.quantity_needed * quantity;
+    const totalNeeded = currentRequirement + additionalNeed;
+
+    if (dishIngredient.current_stock < totalNeeded) {
+      missingIngredients.push(dishIngredient.ingredient_name);
+      sufficient = false;
+    }
+  });
+
+  return { sufficient, missingIngredients };
+};
 
 const addDishToPlan = () => {
   if (!selectedDishId.value || !selectedFrequency.value) return;
 
   const dish = props.dishes.find(d => d.dish_id.toString() === selectedDishId.value);
   if (!dish) return;
+
+  // Check stock availability before adding
+  if (dish.ingredients && dish.ingredients.length > 0) {
+    const stockCheck = validateStockForDish(dish, selectedQuantity.value);
+    if (!stockCheck.sufficient) {
+      alert(`Cannot add dish: Insufficient stock for ${stockCheck.missingIngredients.join(', ')}`);
+      return;
+    }
+  }
 
   // Validate specific requirements
   if (selectedFrequency.value === 'specific' && !selectedDate.value) return;
@@ -163,9 +208,9 @@ const addDishToPlan = () => {
         dish_id: dish.dish_id,
         dish_name: dish.dish_name,
         planned_quantity: selectedQuantity.value,
-        meal_type: null,
+        meal_type: '',
         planned_date: date,
-        day_of_week: new Date(date).getDay() + 1,
+        day_of_week: new Date(date).getDay(),
         notes: selectedNotes.value,
       });
     }
@@ -184,7 +229,15 @@ const removeDishFromPlan = (index: number) => {
   form.dishes.splice(index, 1);
 };
 
-const removeDishGroup = (group: any) => {
+interface DishGroup {
+  dishName: string;
+  pattern: string;
+  totalQuantity: number;
+  dishes: PlanDish[];
+  dates: string[];
+}
+
+const removeDishGroup = (group: DishGroup) => {
   // Remove all dishes that match this group's dish name
   form.dishes = form.dishes.filter(dish =>
     dish.dish_name !== group.dishName
@@ -195,9 +248,8 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString();
 };
 
-
 // Group dishes for better display
-const groupedDishes = computed(() => {
+const groupedDishes = computed((): DishGroup[] => {
   const groups: { [key: string]: PlanDish[] } = {};
 
   form.dishes.forEach(dish => {
@@ -237,10 +289,87 @@ const groupedDishes = computed(() => {
   });
 });
 
+// Calculate total ingredient requirements for entire menu plan
+const ingredientRequirements = computed(() => {
+  const requirements: Record<number, {
+    ingredient_name: string;
+    total_needed: number;
+    current_stock: number;
+    base_unit: string;
+    sufficient: boolean;
+  }> = {};
+
+  form.dishes.forEach(planDish => {
+    const dish = props.dishes.find(d => d.dish_id === planDish.dish_id);
+    if (!dish?.ingredients) return;
+
+    dish.ingredients.forEach(dishIngredient => {
+      if (dishIngredient.pivot.is_optional) return; // Skip optional ingredients
+
+      const ingredientId = dishIngredient.ingredient_id;
+
+      if (!requirements[ingredientId]) {
+        requirements[ingredientId] = {
+          ingredient_name: dishIngredient.ingredient_name,
+          total_needed: 0,
+          current_stock: dishIngredient.current_stock,
+          base_unit: dishIngredient.base_unit,
+          sufficient: true
+        };
+      }
+
+      // Add quantity needed (dish ingredient quantity * planned quantity)
+      requirements[ingredientId].total_needed += dishIngredient.pivot.quantity_needed * planDish.planned_quantity;
+
+      // Update sufficient status
+      requirements[ingredientId].sufficient =
+        requirements[ingredientId].current_stock >= requirements[ingredientId].total_needed;
+    });
+  });
+
+  return requirements;
+});
+
+// Check if entire menu plan can be produced
+const canProducePlan = computed(() => {
+  return Object.values(ingredientRequirements.value).every(req => req.sufficient);
+});
+
+// Get ingredients with insufficient stock
+const insufficientIngredients = computed(() => {
+  return Object.values(ingredientRequirements.value).filter(req => !req.sufficient);
+});
+
+// Get stock status for a specific dish
+const getDishStockStatus = (dish: Dish) => {
+  if (!dish.ingredients) return { canProduce: true, missingIngredients: [] };
+
+  const missingIngredients: string[] = [];
+  let canProduce = true;
+
+  dish.ingredients.forEach(dishIngredient => {
+    if (dishIngredient.pivot.is_optional) return;
+
+    const requirements = ingredientRequirements.value[dishIngredient.ingredient_id];
+    if (requirements && !requirements.sufficient) {
+      missingIngredients.push(requirements.ingredient_name);
+      canProduce = false;
+    }
+  });
+
+  return { canProduce, missingIngredients };
+};
+
 const submit = () => {
   console.log('🚀 Starting form submission...');
 
-  form.post('/menu-planning', {
+  // Add the computed plan_type to the form data before submission
+  const formData = {
+    ...form.data(),
+    plan_type: planType.value
+  };
+
+  form.transform(() => formData).post('/menu-planning', {
     onStart: () => {
       console.log('📡 Request started');
     },
@@ -315,23 +444,10 @@ const submit = () => {
               </div>
 
               <div class="space-y-2">
-                <Label for="plan_type">Plan Type *</Label>
-                <Select v-model="form.plan_type">
-                  <SelectTrigger :class="{ 'border-red-500': form.errors.plan_type }">
-                    <SelectValue placeholder="Select plan type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="type in planTypes"
-                      :key="type.value"
-                      :value="type.value"
-                    >
-                      {{ type.label }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p v-if="form.errors.plan_type" class="text-sm text-red-500">
-                  {{ form.errors.plan_type }}
+                <Label class="text-sm font-medium">Plan Type</Label>
+                <p class="text-sm">
+                  <strong>{{ planType === 'daily' ? 'Daily Plan' : 'Weekly Plan' }}</strong>
+                  - {{ planType === 'daily' ? 'Same start and end date' : 'Multiple days selected' }}
                 </p>
               </div>
             </div>
@@ -356,14 +472,13 @@ const submit = () => {
                   id="end_date"
                   v-model="form.end_date"
                   type="date"
-                  :disabled="form.plan_type === 'daily'"
                   :class="{ 'border-red-500': form.errors.end_date }"
                 />
                 <p v-if="form.errors.end_date" class="text-sm text-red-500">
                   {{ form.errors.end_date }}
                 </p>
-                <p v-if="form.plan_type === 'daily'" class="text-xs text-muted-foreground">
-                  End date is automatically set for daily plans
+                <p class="text-xs text-muted-foreground">
+                  {{ planType === 'daily' ? 'Set to same date as start for daily plans' : 'Select end date for multi-day plans' }}
                 </p>
               </div>
             </div>
@@ -379,6 +494,49 @@ const submit = () => {
             </div>
           </CardContent>
         </Card>
+
+        <!-- Overall Stock Status -->
+        <div v-if="form.dishes.length > 0" class="mb-6">
+          <div
+            :class="[
+              'p-4 rounded-lg border',
+              canProducePlan
+                ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+            ]"
+          >
+            <div class="flex items-center gap-3">
+              <Badge
+                :variant="canProducePlan ? 'default' : 'destructive'"
+                class="text-sm px-3 py-1"
+              >
+                {{ canProducePlan ? '✓ Plan Feasible' : '⚠ Stock Issues' }}
+              </Badge>
+              <div :class="canProducePlan ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'">
+                <span v-if="canProducePlan" class="font-medium">
+                  All dishes can be produced with current inventory!
+                </span>
+                <span v-else class="font-medium">
+                  {{ insufficientIngredients.length }} ingredient(s) have insufficient stock for this plan
+                </span>
+              </div>
+            </div>
+            <div v-if="!canProducePlan" class="mt-3">
+              <div class="text-sm text-red-700 dark:text-red-300">
+                <strong>Missing ingredients:</strong>
+                <ul class="mt-1 space-y-1">
+                  <li v-for="ingredient in insufficientIngredients" :key="ingredient.ingredient_name" class="flex justify-between">
+                    <span>• {{ ingredient.ingredient_name }}</span>
+                    <span class="font-mono">
+                      Need: {{ ingredient.total_needed }} {{ ingredient.base_unit }} |
+                      Have: {{ ingredient.current_stock }} {{ ingredient.base_unit }}
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <!-- Add Dishes to Plan -->
         <Card>
@@ -401,8 +559,27 @@ const submit = () => {
                       v-for="dish in dishes"
                       :key="dish.dish_id"
                       :value="dish.dish_id.toString()"
+                      :class="getDishStockStatus(dish).canProduce ? '' : 'text-red-600 dark:text-red-400'"
                     >
-                      {{ dish.dish_name }}
+                      <div class="flex items-center justify-between w-full">
+                        <span>{{ dish.dish_name }}</span>
+                        <div class="flex items-center gap-1">
+                          <Badge
+                            v-if="getDishStockStatus(dish).canProduce"
+                            variant="default"
+                            class="text-xs"
+                          >
+                            ✓
+                          </Badge>
+                          <Badge
+                            v-else
+                            variant="destructive"
+                            class="text-xs"
+                          >
+                            ⚠
+                          </Badge>
+                        </div>
+                      </div>
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -509,6 +686,7 @@ const submit = () => {
                   <TableHead>Schedule Pattern</TableHead>
                   <TableHead>Total Quantity</TableHead>
                   <TableHead>Dates Count</TableHead>
+                  <TableHead>Stock Status</TableHead>
                   <TableHead class="w-20">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -523,6 +701,16 @@ const submit = () => {
                   <TableCell>{{ group.totalQuantity }}</TableCell>
                   <TableCell>{{ group.dates.length }} days</TableCell>
                   <TableCell>
+                    <div class="flex items-center gap-2">
+                      <Badge
+                        :variant="getDishStockStatus(props.dishes.find(d => d.dish_name === group.dishName)).canProduce ? 'default' : 'destructive'"
+                        class="text-xs"
+                      >
+                        {{ getDishStockStatus(props.dishes.find(d => d.dish_name === group.dishName)).canProduce ? '✓ Available' : '⚠ Low Stock' }}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -534,7 +722,7 @@ const submit = () => {
                   </TableCell>
                 </TableRow>
                 <TableRow v-if="groupedDishes.length === 0">
-                  <TableCell colspan="5" class="text-center py-8">
+                  <TableCell colspan="6" class="text-center py-8">
                     <div class="text-muted-foreground">
                       <CalendarDays class="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                       <div class="text-lg mb-2">No dishes planned yet</div>

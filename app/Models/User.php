@@ -53,6 +53,19 @@ class User extends Authenticatable implements MustVerifyEmailContract
         return $this->hasOne(UserSubscription::class, 'user_id', 'id');
     }
 
+    // Define the relationship with MenuPlans through Restaurant_Data
+    public function menuPlans()
+    {
+        return $this->hasManyThrough(
+            MenuPlan::class,
+            Restaurant_Data::class,
+            'user_id', // Foreign key on Restaurant_Data table
+            'restaurant_id', // Foreign key on MenuPlan table
+            'id', // Local key on User table
+            'id' // Local key on Restaurant_Data table
+        );
+    }
+
     /**
      * The attributes that should be hidden for serialization.
      *

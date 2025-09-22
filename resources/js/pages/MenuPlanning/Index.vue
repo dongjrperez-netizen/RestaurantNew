@@ -70,7 +70,7 @@ const deletePlan = (plan: MenuPlan) => {
   <Head title="Menu Planning" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6 ml-6">
+    <div class="mx-6 space-y-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>

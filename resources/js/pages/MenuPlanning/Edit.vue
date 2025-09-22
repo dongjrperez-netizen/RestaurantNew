@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { ref, computed, watch } from 'vue';
-import { Plus, Trash2, Calendar, CalendarDays, Clock } from 'lucide-vue-next';
+import { Plus, Trash2, Calendar, CalendarDays, Clock, CheckCircle, AlertCircle } from 'lucide-vue-next';
 
 interface Dish {
   dish_id: number;
@@ -44,6 +44,10 @@ interface MenuPlan {
 interface Props {
   dishes: Dish[];
   menuPlan: MenuPlan;
+  flash?: {
+    success?: string;
+    error?: string;
+  };
 }
 
 const props = defineProps<Props>();
@@ -63,6 +67,7 @@ interface PlanDish {
   planned_date: string;
   day_of_week?: number;
   notes?: string;
+  [key: string]: any;
 }
 
 // Convert existing menu plan dishes to the format we need
@@ -72,44 +77,66 @@ const existingDishes: PlanDish[] = props.menuPlan.menu_plan_dishes.map(mpd => ({
   planned_quantity: mpd.planned_quantity,
   meal_type: mpd.meal_type || '',
   planned_date: mpd.planned_date.split('T')[0], // Extract date part
-  day_of_week: mpd.day_of_week,
+  day_of_week: mpd.day_of_week || undefined,
   notes: mpd.notes || '',
 }));
 
+// Format dates properly for form inputs
+const formatDateForInput = (dateString: string) => {
+  return dateString.split('T')[0]; // Extract YYYY-MM-DD format
+};
+
 const form = useForm({
   plan_name: props.menuPlan.plan_name,
-  plan_type: props.menuPlan.plan_type as 'daily' | 'weekly',
-  start_date: props.menuPlan.start_date,
-  end_date: props.menuPlan.end_date,
+  start_date: formatDateForInput(props.menuPlan.start_date),
+  end_date: formatDateForInput(props.menuPlan.end_date),
   description: props.menuPlan.description || '',
   dishes: existingDishes,
 });
 
-const selectedDishId = ref('');
-const selectedQuantity = ref(1);
-const selectedDate = ref('');
-const selectedNotes = ref('');
-const selectedFrequency = ref('');
-const selectedDayOfWeek = ref('');
-
-const planTypes = [
-  { value: 'daily', label: 'Daily Plan' },
-  { value: 'weekly', label: 'Weekly Plan' },
-];
-
-// Watch plan type changes to adjust date range
-watch(() => form.plan_type, (newType) => {
-  if (newType === 'daily') {
-    form.end_date = form.start_date;
-  }
+// Add computed property to determine plan type based on date range
+const planType = computed(() => {
+  if (!form.start_date || !form.end_date) return props.menuPlan.plan_type;
+  const startDate = new Date(form.start_date);
+  const endDate = new Date(form.end_date);
+  const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+  return daysDiff === 0 ? 'daily' : 'weekly';
 });
 
-// Watch start date changes for daily plans
+const selectedDishId = ref<string>('');
+const selectedQuantity = ref<number>(1);
+const selectedDate = ref<string>('');
+const selectedNotes = ref<string>('');
+const selectedFrequency = ref<string>('');
+const selectedDayOfWeek = ref<string>('');
+const selectedMealType = ref<string>('');
+
+// planTypes array removed - now using computed planType
+
+// Auto-adjust end date when start date changes (optional behavior)
 watch(() => form.start_date, (newDate) => {
-  if (form.plan_type === 'daily') {
+  if (newDate && planType.value === 'daily' && form.end_date !== newDate) {
+    // Only auto-adjust if it's currently a daily plan and dates don't match
     form.end_date = newDate;
   }
 });
+
+// Auto-extend date range when adding dishes outside current range
+const autoExtendDateRange = (dishDate: string) => {
+  const dishDateObj = new Date(dishDate);
+  const startDateObj = new Date(form.start_date);
+  const endDateObj = new Date(form.end_date);
+
+  // Extend start date if dish date is earlier
+  if (dishDateObj < startDateObj) {
+    form.start_date = dishDate;
+  }
+
+  // Extend end date if dish date is later
+  if (dishDateObj > endDateObj) {
+    form.end_date = dishDate;
+  }
+};
 
 const addDishToPlan = () => {
   if (!selectedDishId.value || !selectedFrequency.value) return;
@@ -145,6 +172,9 @@ const addDishToPlan = () => {
 
   // Add dishes for all generated dates
   datesToAdd.forEach(date => {
+    // Auto-extend date range if needed
+    autoExtendDateRange(date);
+
     // Check if dish already exists for this date
     const existingIndex = form.dishes.findIndex(d =>
       d.dish_id === dish.dish_id &&
@@ -155,13 +185,16 @@ const addDishToPlan = () => {
       // Update existing entry
       form.dishes[existingIndex].planned_quantity += selectedQuantity.value;
       form.dishes[existingIndex].notes = selectedNotes.value;
+      if (selectedMealType.value) {
+        form.dishes[existingIndex].meal_type = selectedMealType.value;
+      }
     } else {
       // Add new entry
       form.dishes.push({
         dish_id: dish.dish_id,
         dish_name: dish.dish_name,
         planned_quantity: selectedQuantity.value,
-        meal_type: '',
+        meal_type: selectedMealType.value,
         planned_date: date,
         day_of_week: new Date(date).getDay(),
         notes: selectedNotes.value,
@@ -176,13 +209,22 @@ const addDishToPlan = () => {
   selectedFrequency.value = '';
   selectedDate.value = '';
   selectedDayOfWeek.value = '';
+  selectedMealType.value = '';
 };
 
 const removeDishFromPlan = (index: number) => {
   form.dishes.splice(index, 1);
 };
 
-const removeDishGroup = (group: any) => {
+interface DishGroup {
+  dishName: string;
+  pattern: string;
+  totalQuantity: number;
+  dishes: PlanDish[];
+  dates: string[];
+}
+
+const removeDishGroup = (group: DishGroup) => {
   // Remove all dishes that match this group's dish name
   form.dishes = form.dishes.filter(dish =>
     dish.dish_name !== group.dishName
@@ -194,7 +236,7 @@ const formatDate = (dateString: string) => {
 };
 
 // Group dishes for better display
-const groupedDishes = computed(() => {
+const groupedDishes = computed((): DishGroup[] => {
   const groups: { [key: string]: PlanDish[] } = {};
 
   form.dishes.forEach(dish => {
@@ -235,7 +277,44 @@ const groupedDishes = computed(() => {
 });
 
 const submit = () => {
-  form.put(`/menu-planning/${props.menuPlan.menu_plan_id}`);
+  console.log('Submit function called');
+
+  // Fix day_of_week values to ensure they're within 0-6 range (JavaScript standard)
+  const cleanedDishes = form.dishes.map(dish => ({
+    ...dish,
+    day_of_week: new Date(dish.planned_date).getDay() // Recalculate to ensure accuracy
+  }));
+
+  // Add the computed plan_type to the cleaned data
+  const formData = {
+    plan_name: form.plan_name,
+    plan_type: planType.value,
+    start_date: form.start_date,
+    end_date: form.end_date,
+    description: form.description,
+    dishes: cleanedDishes
+  };
+
+  console.log('Form data being submitted:', formData);
+  console.log('Number of dishes:', cleanedDishes.length);
+
+  // Submit the form data with computed plan_type
+  form.transform(() => formData).put(`/menu-planning/${props.menuPlan.menu_plan_id}`, {
+    onSuccess: (response) => {
+      console.log('Update successful:', response);
+      // Success message will be handled by the redirect with flash message
+    },
+    onError: (errors) => {
+      console.error('Update failed:', errors);
+      console.log('Form errors:', form.errors);
+    },
+    onStart: () => {
+      console.log('Form submission started');
+    },
+    onFinish: () => {
+      console.log('Form submission finished');
+    }
+  });
 };
 </script>
 
@@ -248,6 +327,28 @@ const submit = () => {
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Edit Menu Plan</h1>
         <p class="text-muted-foreground">Update your daily or weekly menu schedule</p>
+      </div>
+
+      <!-- Flash Messages -->
+      <div v-if="flash?.success" class="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+        <CheckCircle class="w-5 h-5" />
+        <span>{{ flash.success }}</span>
+      </div>
+
+      <div v-if="flash?.error" class="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+        <AlertCircle class="w-5 h-5" />
+        <span>{{ flash.error }}</span>
+      </div>
+
+      <!-- General Form Errors -->
+      <div v-if="Object.keys(form.errors).length > 0" class="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+        <AlertCircle class="w-5 h-5" />
+        <div>
+          <p class="font-medium">Please fix the following errors:</p>
+          <ul class="list-disc list-inside mt-1">
+            <li v-for="(error, field) in form.errors" :key="field">{{ error }}</li>
+          </ul>
+        </div>
       </div>
 
       <form @submit.prevent="submit" class="space-y-8">
@@ -275,23 +376,10 @@ const submit = () => {
               </div>
 
               <div class="space-y-2">
-                <Label for="plan_type">Plan Type *</Label>
-                <Select v-model="form.plan_type">
-                  <SelectTrigger :class="{ 'border-red-500': form.errors.plan_type }">
-                    <SelectValue placeholder="Select plan type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="type in planTypes"
-                      :key="type.value"
-                      :value="type.value"
-                    >
-                      {{ type.label }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p v-if="form.errors.plan_type" class="text-sm text-red-500">
-                  {{ form.errors.plan_type }}
+                <Label class="text-sm font-medium">Plan Type</Label>
+                <p class="text-sm">
+                  <strong>{{ planType === 'daily' ? 'Daily Plan' : 'Weekly Plan' }}</strong>
+                  - {{ planType === 'daily' ? 'Same start and end date' : 'Multiple days selected' }}
                 </p>
               </div>
             </div>
@@ -308,6 +396,9 @@ const submit = () => {
                 <p v-if="form.errors.start_date" class="text-sm text-red-500">
                   {{ form.errors.start_date }}
                 </p>
+                <p class="text-xs text-muted-foreground">
+                  Dates will automatically extend when you add dishes outside this range
+                </p>
               </div>
 
               <div class="space-y-2">
@@ -316,14 +407,13 @@ const submit = () => {
                   id="end_date"
                   v-model="form.end_date"
                   type="date"
-                  :disabled="form.plan_type === 'daily'"
                   :class="{ 'border-red-500': form.errors.end_date }"
                 />
                 <p v-if="form.errors.end_date" class="text-sm text-red-500">
                   {{ form.errors.end_date }}
                 </p>
-                <p v-if="form.plan_type === 'daily'" class="text-xs text-muted-foreground">
-                  End date is automatically set for daily plans
+                <p class="text-xs text-muted-foreground">
+                  {{ planType === 'daily' ? 'Set to same date as start for daily plans' : 'Will auto-extend when adding dishes beyond this date' }}
                 </p>
               </div>
             </div>
@@ -349,7 +439,7 @@ const submit = () => {
             </CardTitle>
           </CardHeader>
           <CardContent class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div class="space-y-2">
                 <Label for="dish_select">Select Dish</Label>
                 <Select v-model="selectedDishId">
@@ -364,6 +454,21 @@ const submit = () => {
                     >
                       {{ dish.dish_name }}
                     </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div class="space-y-2">
+                <Label for="meal_type">Meal Type</Label>
+                <Select v-model="selectedMealType">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose meal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="breakfast">Breakfast</SelectItem>
+                    <SelectItem value="lunch">Lunch</SelectItem>
+                    <SelectItem value="dinner">Dinner</SelectItem>
+                    <SelectItem value="snack">Snack</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

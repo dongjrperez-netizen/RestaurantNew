@@ -62,8 +62,8 @@ const formatNumber = (num: number): string => {
 
 // Get flash messages from page props
 const page = usePage();
-const successMessage = computed(() => page.props.flash?.success);
-const errorMessage = computed(() => page.props.flash?.error);
+const successMessage = computed(() => (page.props as any).flash?.success);
+const errorMessage = computed(() => (page.props as any).flash?.error);
 
 // Edit functionality
 const showEditModal = ref(false);
@@ -105,7 +105,7 @@ const saveEdit = () => {
   <Head title="Ingredients Inventory" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6">
+    <div class="mx-6 space-y-6">
       <!-- Success/Error Messages -->
       <div v-if="successMessage" class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md">
         {{ successMessage }}

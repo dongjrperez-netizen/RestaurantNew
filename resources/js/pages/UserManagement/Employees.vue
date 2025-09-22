@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +33,7 @@ import AlertDialogFooter from '@/components/ui/alert-dialog/AlertDialogFooter.vu
 import AlertDialogHeader from '@/components/ui/alert-dialog/AlertDialogHeader.vue';
 import AlertDialogTitle from '@/components/ui/alert-dialog/AlertDialogTitle.vue';
 import AlertDialogTrigger from '@/components/ui/alert-dialog/AlertDialogTrigger.vue';
+import { Eye, Edit, UserCheck, UserX, Trash2 } from 'lucide-vue-next';
 
 interface Role {
   id: number;
@@ -138,8 +140,8 @@ const formatDate = (dateString: string) => {
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Employees</h1>
-                    <p class="text-gray-600 mt-1">Manage your restaurant employees</p>
+                    <h1 class="text-3xl font-bold tracking-tight">Employees</h1>
+                    <p class="text-muted-foreground">Manage your restaurant employees</p>
                 </div>
                 <Link :href="route('employees.create')">
                     <Button>Add Employee</Button>
@@ -147,152 +149,174 @@ const formatDate = (dateString: string) => {
             </div>
 
             <!-- Filters -->
-            <div class="mb-6 p-4 bg-white rounded-lg border">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <Input
-                            v-model="searchQuery"
-                            placeholder="Search employees..."
-                            @keyup.enter="search"
-                        />
+            <Card>
+                <CardContent class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div>
+                            <Input
+                                v-model="searchQuery"
+                                placeholder="Search employees..."
+                                @keyup.enter="search"
+                            />
+                        </div>
+                        <div>
+                            <Select v-model="selectedStatus">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="All Status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">All Status</SelectItem>
+                                    <SelectItem value="active">Active</SelectItem>
+                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div>
+                            <Select v-model="selectedRole">
+                                <SelectTrigger>
+                                    <SelectValue placeholder="All Roles" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="">All Roles</SelectItem>
+                                    <SelectItem
+                                        v-for="role in roles"
+                                        :key="role.id"
+                                        :value="role.id.toString()"
+                                    >
+                                        {{ role.role_name }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div class="flex gap-2">
+                            <Button @click="search" variant="outline">Search</Button>
+                            <Button @click="clearFilters" variant="ghost">Clear</Button>
+                        </div>
                     </div>
-                    <div>
-                        <Select v-model="selectedStatus">
-                            <SelectTrigger>
-                                <SelectValue placeholder="All Status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">All Status</SelectItem>
-                                <SelectItem value="active">Active</SelectItem>
-                                <SelectItem value="inactive">Inactive</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div>
-                        <Select v-model="selectedRole">
-                            <SelectTrigger>
-                                <SelectValue placeholder="All Roles" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="">All Roles</SelectItem>
-                                <SelectItem 
-                                    v-for="role in roles" 
-                                    :key="role.id" 
-                                    :value="role.id.toString()"
-                                >
-                                    {{ role.role_name }}
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div class="flex gap-2">
-                        <Button @click="search" variant="outline">Search</Button>
-                        <Button @click="clearFilters" variant="ghost">Clear</Button>
-                    </div>
-                </div>
-            </div>
+                </CardContent>
+            </Card>
 
             <!-- Employee Table -->
-            <div class="bg-white rounded-lg border">
-                <Table>
-                    <TableCaption>{{ employees.total }} employees found</TableCaption>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Role</TableHead>
-                            <TableHead>Gender</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Date Joined</TableHead>
-                            <TableHead class="text-right">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <TableRow v-if="employees.data.length === 0">
-                            <TableCell colspan="7" class="text-center text-gray-500 py-8">
-                                No employees found. 
-                                <Link :href="route('employees.create')" class="text-blue-600 hover:underline">
-                                    Add your first employee
-                                </Link>
-                            </TableCell>
-                        </TableRow>
-                        <TableRow v-for="employee in employees.data" :key="employee.employee_id">
-                            <TableCell class="font-medium">
-                                {{ employee.full_name }}
-                            </TableCell>
-                            <TableCell>{{ employee.email }}</TableCell>
-                            <TableCell>{{ employee.role.role_name }}</TableCell>
-                            <TableCell class="capitalize">{{ employee.gender }}</TableCell>
-                            <TableCell>
-                                <Badge :variant="getStatusBadgeVariant(employee.status)">
-                                    {{ employee.status }}
-                                </Badge>
-                            </TableCell>
-                            <TableCell>{{ formatDate(employee.created_at) }}</TableCell>
-                            <TableCell class="text-right">
-                                <div class="flex justify-end gap-2">
-                                    <Link :href="route('employees.show', employee.employee_id)">
-                                        <Button variant="outline" size="sm">View</Button>
-                                    </Link>
-                                    <Link :href="route('employees.edit', employee.employee_id)">
-                                        <Button variant="outline" size="sm">Edit</Button>
-                                    </Link>
-                                    <Button 
-                                        @click="toggleStatus(employee.employee_id)"
-                                        :variant="employee.status === 'active' ? 'secondary' : 'default'"
-                                        size="sm"
-                                    >
-                                        {{ employee.status === 'active' ? 'Deactivate' : 'Activate' }}
-                                    </Button>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="destructive" size="sm">Delete</Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This action cannot be undone. This will permanently delete 
-                                                    {{ employee.full_name }} from your employee records.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction @click="deleteEmployee(employee.employee_id)">
-                                                    Delete
-                                                </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    </TableBody>
-                </Table>
+            <Card class="mt-6">
+                <CardHeader>
+                    <CardTitle>Employees List</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Role</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Date Joined</TableHead>
+                                <TableHead class="text-right">Actions</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow v-if="employees.data.length === 0">
+                                <TableCell colspan="6" class="text-center py-8">
+                                    <div class="text-muted-foreground">
+                                        <div class="text-lg mb-2">No employees found</div>
+                                        <div class="text-sm">
+                                            Get started by
+                                            <Link :href="route('employees.create')" class="text-primary hover:underline">
+                                                adding your first employee
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                            <TableRow v-for="employee in employees.data" :key="employee.employee_id">
+                                <TableCell class="font-medium">
+                                    <div>
+                                        <div class="font-semibold">{{ employee.full_name }}</div>
+                                        <div class="text-sm text-muted-foreground capitalize">{{ employee.gender }}</div>
+                                    </div>
+                                </TableCell>
+                                <TableCell>{{ employee.email }}</TableCell>
+                                <TableCell>{{ employee.role.role_name }}</TableCell>
+                                <TableCell>
+                                    <Badge :variant="getStatusBadgeVariant(employee.status)">
+                                        {{ employee.status }}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>{{ formatDate(employee.created_at) }}</TableCell>
+                                <TableCell class="text-right">
+                                    <div class="flex justify-end items-center gap-1">
+                                        <Link :href="route('employees.show', employee.employee_id)">
+                                            <Button variant="ghost" size="sm" class="h-8 w-8 p-0" title="View Details">
+                                                <Eye class="h-4 w-4" />
+                                            </Button>
+                                        </Link>
+                                        <Link :href="route('employees.edit', employee.employee_id)">
+                                            <Button variant="ghost" size="sm" class="h-8 w-8 p-0" title="Edit Employee">
+                                                <Edit class="h-4 w-4" />
+                                            </Button>
+                                        </Link>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            class="h-8 w-8 p-0"
+                                            @click="toggleStatus(employee.employee_id)"
+                                            :title="employee.status === 'active' ? 'Deactivate Employee' : 'Activate Employee'"
+                                            :class="employee.status === 'active' ? 'text-red-600 hover:text-red-700 hover:bg-red-50' : 'text-green-600 hover:text-green-700 hover:bg-green-50'"
+                                        >
+                                            <UserX v-if="employee.status === 'active'" class="h-4 w-4" />
+                                            <UserCheck v-else class="h-4 w-4" />
+                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="sm" class="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50" title="Delete Employee">
+                                                    <Trash2 class="h-4 w-4" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        This action cannot be undone. This will permanently delete
+                                                        {{ employee.full_name }} from your employee records.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                    <AlertDialogAction @click="deleteEmployee(employee.employee_id)">
+                                                        Delete
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        </TableBody>
+                    </Table>
 
-                <!-- Pagination -->
-                <div v-if="employees.last_page > 1" class="flex justify-between items-center px-4 py-3 border-t">
-                    <div class="text-sm text-gray-700">
-                        Showing {{ employees.from }} to {{ employees.to }} of {{ employees.total }} results
+                    <!-- Pagination -->
+                    <div v-if="employees.last_page > 1" class="flex justify-between items-center pt-4 mt-4 border-t">
+                        <div class="text-sm text-muted-foreground">
+                            Showing {{ employees.from }} to {{ employees.to }} of {{ employees.total }} results
+                        </div>
+                        <div class="flex gap-2">
+                            <Link
+                                v-if="employees.current_page > 1"
+                                :href="route('employees.index', { ...filters, page: employees.current_page - 1 })"
+                                preserve-scroll
+                            >
+                                <Button variant="outline" size="sm">Previous</Button>
+                            </Link>
+                            <Link
+                                v-if="employees.current_page < employees.last_page"
+                                :href="route('employees.index', { ...filters, page: employees.current_page + 1 })"
+                                preserve-scroll
+                            >
+                                <Button variant="outline" size="sm">Next</Button>
+                            </Link>
+                        </div>
                     </div>
-                    <div class="flex gap-2">
-                        <Link 
-                            v-if="employees.current_page > 1"
-                            :href="route('employees.index', { ...filters, page: employees.current_page - 1 })"
-                            preserve-scroll
-                        >
-                            <Button variant="outline" size="sm">Previous</Button>
-                        </Link>
-                        <Link 
-                            v-if="employees.current_page < employees.last_page"
-                            :href="route('employees.index', { ...filters, page: employees.current_page + 1 })"
-                            preserve-scroll
-                        >
-                            <Button variant="outline" size="sm">Next</Button>
-                        </Link>
-                    </div>
-                </div>
-            </div>
+                </CardContent>
+            </Card>
         </div>
     </AppLayout>
 </template>

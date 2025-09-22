@@ -70,8 +70,8 @@ const submit = () => {
       <!-- Header -->
       <div class="flex justify-between items-center mb-6">
         <div>
-          <h1 class="text-2xl font-bold text-gray-900">Create Supplier</h1>
-          <p class="text-gray-600 mt-1">
+          <h1 class="text-2xl font-bold text-foreground">Create Supplier</h1>
+          <p class="text-muted-foreground mt-1">
             Add a new supplier to your restaurant
           </p>
         </div>

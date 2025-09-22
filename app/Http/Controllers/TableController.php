@@ -12,8 +12,32 @@ class TableController extends Controller
     public function index()
     {
         $tables = Table::where('user_id', Auth::id())
+            ->with([
+                'reservations' => function($query) {
+                    $query->where('status', 'seated')->first();
+                }
+            ])
             ->orderBy('table_number')
-            ->get();
+            ->get()
+            ->map(function($table) {
+                $currentReservation = $table->getCurrentReservation();
+                $nextReservation = $table->getNextReservation();
+
+                return [
+                    'id' => $table->id,
+                    'table_number' => $table->table_number,
+                    'table_name' => $table->table_name,
+                    'seats' => $table->seats,
+                    'status' => $table->status,
+                    'description' => $table->description,
+                    'x_position' => $table->x_position,
+                    'y_position' => $table->y_position,
+                    'created_at' => $table->created_at,
+                    'updated_at' => $table->updated_at,
+                    'current_reservation' => $currentReservation,
+                    'next_reservation' => $nextReservation,
+                ];
+            });
 
         return Inertia::render('POS/Tables/Index', [
             'tables' => $tables

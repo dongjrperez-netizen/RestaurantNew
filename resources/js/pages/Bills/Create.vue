@@ -24,6 +24,10 @@ interface PurchaseOrder {
   };
   total_amount: number;
   order_date: string;
+  actual_delivery_date?: string;
+  subtotal?: number;
+  tax_amount?: number;
+  discount_amount?: number;
 }
 
 interface Props {
@@ -45,7 +49,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const form = useForm({
-  purchase_order_id: 'none',
+  purchase_order_id: 'none' as string | null,
   supplier_id: '',
   supplier_invoice_number: '',
   bill_date: new Date().toISOString().split('T')[0],
@@ -115,9 +119,9 @@ const onPurchaseOrderChange = () => {
       }
 
       // Auto-fill amounts from PO
-      form.subtotal = parseFloat(po.subtotal || po.total_amount || 0);
-      form.discount_amount = parseFloat(po.discount_amount || 0);
-      form.tax_amount = parseFloat(po.tax_amount || 0);
+      form.subtotal = Number(po.subtotal || po.total_amount || 0);
+      form.discount_amount = Number(po.discount_amount || 0);
+      form.tax_amount = Number(po.tax_amount || 0);
       
       // Calculate total amount
       updateTotals();
@@ -142,22 +146,22 @@ const onSupplierChange = () => {
       
       switch (supplier.payment_terms) {
         case 'COD':
-        case 'Net 0':
+        case 'NET_0':
           daysToAdd = 0;
           break;
-        case 'Net 7':
+        case 'NET_7':
           daysToAdd = 7;
           break;
-        case 'Net 15':
+        case 'NET_15':
           daysToAdd = 15;
           break;
-        case 'Net 30':
+        case 'NET_30':
           daysToAdd = 30;
           break;
-        case 'Net 60':
+        case 'NET_60':
           daysToAdd = 60;
           break;
-        case 'Net 90':
+        case 'NET_90':
           daysToAdd = 90;
           break;
       }
@@ -170,12 +174,6 @@ const onSupplierChange = () => {
 };
 
 const submit = () => {
-  // Convert 'none' back to null for backend
-  const formData = { ...form.data() };
-  if (formData.purchase_order_id === 'none') {
-    formData.purchase_order_id = null;
-  }
-  
   form.transform((data) => ({
     ...data,
     purchase_order_id: data.purchase_order_id === 'none' ? null : data.purchase_order_id

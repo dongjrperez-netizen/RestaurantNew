@@ -49,6 +49,7 @@ interface DishCost {
 }
 
 interface Dish {
+  price: any;
   dish_id: number;
   dish_name: string;
   description?: string;
@@ -136,6 +137,13 @@ const formatDate = (dateString: string) => {
     hour: '2-digit',
     minute: '2-digit'
   });
+};
+
+const handleImageError = (event: Event) => {
+  const target = event.target as HTMLImageElement;
+  if (target) {
+    target.style.display = 'none';
+  }
 };
 </script>
 
@@ -254,7 +262,7 @@ const formatDate = (dateString: string) => {
           <Card v-if="dish.price">
             <CardHeader>
               <CardTitle class="flex items-center gap-2">
-                <DollarSign class="w-5 h-5" />
+                <Calculator class="w-5 h-5" />
                 Price
               </CardTitle>
             </CardHeader>
@@ -313,7 +321,7 @@ const formatDate = (dateString: string) => {
                   :src="dish.image_url"
                   :alt="dish.dish_name"
                   class="w-full h-full object-cover"
-                  @error="$event.target.style.display = 'none'"
+                  @error="handleImageError"
                 />
               </div>
             </CardContent>

@@ -6,6 +6,8 @@ defineProps<{
     title?: string;
     description?: string;
 }>();
+
+const backgroundImageUrl = '/RestoBG.jpg';
 </script>
 
 <template>
@@ -14,9 +16,11 @@ defineProps<{
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Kaushan+Script&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
-        
-        <!-- Background Pattern -->
-        <div class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]"></div>
+
+        <!-- Background Image -->
+        <div class="fixed inset-0 -z-20" :style="{ backgroundImage: `url(${backgroundImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }"></div>
+        <!-- Dark Overlay -->
+        <div class="fixed inset-0 bg-black/60 -z-10"></div>
         
         <!-- Header with back button and logo -->
         <header class="relative z-10 px-6 py-6">

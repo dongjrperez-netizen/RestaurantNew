@@ -118,7 +118,7 @@ const cancelOrder = () => {
   <Head :title="`Purchase Order ${purchaseOrder.po_number}`" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6">
+    <div class="mx-6 space-y-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>

@@ -40,17 +40,28 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
-        // Determine which user to share based on the route
+        // Determine which user to share based on the route and authentication status
         $user = null;
+        $userType = null;
+
         if ($request->is('admin/*') || $request->is('admin')) {
             // For admin routes, get the admin user
             $user = Auth::guard('admin')->user();
+            $userType = 'admin';
         } elseif ($request->is('supplier/*') || $request->is('supplier')) {
             // For supplier routes, get the supplier user
             $user = Auth::guard('supplier')->user();
+            $userType = 'supplier';
         } else {
-            // For regular routes, get the default user
-            $user = $request->user();
+            // Check if authenticated as employee first
+            if (Auth::guard('employee')->check()) {
+                $user = Auth::guard('employee')->user();
+                $userType = 'employee';
+            } elseif (Auth::guard('web')->check()) {
+                // For regular routes, get the web user (owner)
+                $user = Auth::guard('web')->user();
+                $userType = 'owner';
+            }
         }
 
         return array_merge(parent::share($request), [
@@ -58,6 +69,7 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
                 'user' => $user,
+                'userType' => $userType,
             ],
             'ziggy' => [
                 ...(new Ziggy)->toArray(),

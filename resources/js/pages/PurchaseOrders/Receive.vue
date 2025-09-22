@@ -224,7 +224,7 @@ const submit = () => {
                 <select
                   id="delivery_condition"
                   v-model="form.delivery_condition"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  class="w-full px-3 py-2 border border-input rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
                 >
                   <option value="excellent">Excellent</option>
                   <option value="good">Good</option>
@@ -254,7 +254,7 @@ const submit = () => {
                 id="general_notes"
                 v-model="form.general_notes"
                 rows="3"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                class="w-full px-3 py-2 border border-input rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
                 placeholder="Add any general notes about the delivery..."
               ></textarea>
             </div>
@@ -313,7 +313,7 @@ const submit = () => {
                     <select
                       v-model="receiveItems[index].quality_rating"
                       @change="checkForDiscrepancy(index)"
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      class="w-full px-3 py-2 border border-input rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-ring"
                     >
                       <option value="">Select Quality</option>
                       <option value="excellent">Excellent</option>
@@ -360,15 +360,15 @@ const submit = () => {
                 </div>
 
                 <!-- Discrepancy Section -->
-                <div v-if="receiveItems[index].has_discrepancy" class="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <div v-if="receiveItems[index].has_discrepancy" class="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
                   <div class="flex items-center space-x-2 mb-2">
                     <Badge variant="warning">Discrepancy Detected</Badge>
-                    <span class="text-sm font-medium text-yellow-800">Please provide reason</span>
+                    <span class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Please provide reason</span>
                   </div>
                   <textarea
                     v-model="receiveItems[index].discrepancy_reason"
                     rows="2"
-                    class="w-full px-3 py-2 border border-yellow-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                    class="w-full px-3 py-2 border border-yellow-300 dark:border-yellow-700 rounded-md shadow-sm bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
                     placeholder="Explain the discrepancy (quantity difference, quality issues, etc.)"
                     required
                   ></textarea>

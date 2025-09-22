@@ -62,7 +62,7 @@ class Dish extends Model
     public function ingredients(): BelongsToMany
     {
         return $this->belongsToMany(Ingredients::class, 'dish_ingredients', 'dish_id', 'ingredient_id')
-            ->withPivot(['quantity_needed', 'unit_of_measure', 'is_optional', 'preparation_note', 'cost_per_unit'])
+            ->withPivot(['quantity_needed', 'unit_of_measure', 'is_optional'])
             ->withTimestamps();
     }
 

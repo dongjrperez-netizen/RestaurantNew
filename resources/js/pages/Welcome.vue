@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
+import AppLogoIcon from '@/components/AppLogoIcon.vue';
 
 const features = [
   {
@@ -67,14 +68,19 @@ const testimonials = [
   <div class="min-h-screen bg-white">
     <!-- HERO SECTION -->
     <div class="relative min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      <!-- Background Pattern -->
-      <div class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]"></div>
+      <!-- Background Image -->
+      <div class="absolute inset-0 bg-[url('/RestoBG.jpg')] bg-cover bg-center bg-no-repeat"></div>
+      <!-- Dark Overlay -->
+      <div class="absolute inset-0 bg-black/60"></div>
 
       <!-- Navigation -->
       <nav class="relative z-20 px-6 py-6">
         <div class="max-w-7xl mx-auto flex items-center justify-between">
-          <div class="text-4xl font-bold text-orange-500" style="font-family: 'Kaushan Script', cursive;">
-            ServeWise
+          <div class="flex items-center gap-3">
+            <AppLogoIcon class="w-12 h-12" />
+            <div class="text-4xl font-bold text-orange-500" style="font-family: 'Kaushan Script', cursive;">
+              ServeWise
+            </div>
           </div>
           
           <div class="hidden md:flex space-x-8 text-white/80">
@@ -226,8 +232,11 @@ const testimonials = [
       <div class="max-w-7xl mx-auto px-6">
         <div class="grid md:grid-cols-4 gap-8">
           <div class="col-span-2">
-            <div class="text-3xl font-bold text-orange-500 mb-4" style="font-family: 'Kaushan Script', cursive;">
-              ServeWise
+            <div class="flex items-center gap-3 mb-4">
+              <AppLogoIcon class="w-10 h-10" />
+              <div class="text-3xl font-bold text-orange-500" style="font-family: 'Kaushan Script', cursive;">
+                ServeWise
+              </div>
             </div>
             <p class="text-gray-400 mb-4 max-w-md">
               The complete restaurant management platform trusted by restaurants worldwide.

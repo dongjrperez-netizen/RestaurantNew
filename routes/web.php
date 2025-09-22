@@ -42,6 +42,39 @@ Route::get('/admin/login', [AdministratorController::class, 'showLogin'])->name(
 Route::post('/admin/login', [AdministratorController::class, 'login'])->name('admin.login.submit');
 Route::post('/admin/logout', [AdministratorController::class, 'logout'])->name('admin.logout');
 
+// Employee Authentication Routes - Redirected to unified login
+Route::prefix('employee')->name('employee.')->group(function () {
+    // Redirect employee login to unified login page
+    Route::get('/login', function () {
+        return redirect()->route('login');
+    })->middleware('guest:employee')->name('login');
+
+    // Redirect employee login POST to unified login (backup for forms still posting here)
+    Route::post('/login', function () {
+        return redirect()->route('login');
+    })->middleware('guest:employee')->name('login.submit');
+
+    // Employee logout - handled by unified logout
+    Route::post('/logout', [\App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'destroy'])
+        ->middleware('auth:employee')
+        ->name('logout');
+
+    Route::get('/forgot-password', [\App\Http\Controllers\Auth\EmployeeLoginController::class, 'showForgotPasswordForm'])
+        ->middleware('guest:employee')
+        ->name('password.request');
+});
+
+// Employee-accessible routes (authenticated with employee guard)
+Route::middleware('auth:employee')->group(function () {
+    // Mobile view for waiters - accessible by employee guard
+    Route::get('/menu-planning/{menuPlan}/mobile-view/{date}', [MenuPlanController::class, 'mobileView'])
+        ->name('menu-planning.mobile-view');
+
+    // Menu planning index - accessible by employees
+    Route::get('/menu-planning', [MenuPlanController::class, 'index'])->name('menu-planning.index.employee');
+});
+
+
 Route::middleware('admin.auth')->group(function () {
     // Admin Dashboard
     Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
@@ -153,6 +186,46 @@ Route::get('/debug/middleware-test', function () {
     return 'Middleware test passed - you are authenticated';
 })->middleware('auth')->name('debug.middleware-test');
 
+// Debug route to view login logs
+Route::get('/debug/login-logs', function () {
+    $logFile = storage_path('logs/laravel.log');
+    if (file_exists($logFile)) {
+        $logs = file_get_contents($logFile);
+        // Get only the last 50 lines that contain LOGIN or AUTH
+        $lines = explode("\n", $logs);
+        $debugLines = array_filter($lines, function($line) {
+            return strpos($line, '🔍') !== false || strpos($line, 'LOGIN') !== false || strpos($line, 'AUTH') !== false;
+        });
+        $recent = array_slice($debugLines, -50);
+
+        return '<pre style="background: #1a1a1a; color: #00ff00; padding: 20px; font-family: monospace;">' .
+               '<h2 style="color: #ffff00;">🔍 LOGIN DEBUG LOGS</h2>' .
+               htmlspecialchars(implode("\n", $recent)) .
+               '</pre>';
+    }
+    return 'No log file found';
+})->name('debug.login-logs');
+
+// Employee Login Test UI
+Route::get('/debug/employee-test', function () {
+    return Inertia::render('Debug/EmployeeTest');
+})->name('debug.employee-test');
+
+// API routes for auth status checking
+Route::get('/api/auth-status/web', function () {
+    return response()->json([
+        'authenticated' => Auth::guard('web')->check(),
+        'user' => Auth::guard('web')->user()
+    ]);
+});
+
+Route::get('/api/auth-status/employee', function () {
+    return response()->json([
+        'authenticated' => Auth::guard('employee')->check(),
+        'user' => Auth::guard('employee')->user()
+    ]);
+});
+
 // Test route to simulate registration success and redirect
 Route::get('/debug/test-redirect', function () {
     $testUser = DB::table('users')->latest()->first();
@@ -194,6 +267,16 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::prefix('pos')->name('pos.')->group(function () {
         Route::resource('tables', App\Http\Controllers\TableController::class);
         Route::post('/tables/{table}/status', [App\Http\Controllers\TableController::class, 'updateStatus'])->name('tables.update-status');
+
+        // Table Reservation Routes
+        Route::get('/reservations/available-slots', [App\Http\Controllers\TableReservationController::class, 'availableSlots'])->name('reservations.available-slots');
+        Route::resource('reservations', App\Http\Controllers\TableReservationController::class);
+        Route::post('/reservations/{reservation}/confirm', [App\Http\Controllers\TableReservationController::class, 'confirm'])->name('reservations.confirm');
+        Route::post('/reservations/{reservation}/cancel', [App\Http\Controllers\TableReservationController::class, 'cancel'])->name('reservations.cancel');
+        Route::post('/reservations/{reservation}/arrived', [App\Http\Controllers\TableReservationController::class, 'markArrived'])->name('reservations.arrived');
+        Route::post('/reservations/{reservation}/seat', [App\Http\Controllers\TableReservationController::class, 'seat'])->name('reservations.seat');
+        Route::post('/reservations/{reservation}/complete', [App\Http\Controllers\TableReservationController::class, 'complete'])->name('reservations.complete');
+        Route::post('/reservations/{reservation}/no-show', [App\Http\Controllers\TableReservationController::class, 'noShow'])->name('reservations.no-show');
     });
 });
 
@@ -353,6 +436,7 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::delete('/menu-planning/{menuPlan}', [MenuPlanController::class, 'destroy'])->name('menu-planning.destroy');
     Route::post('/menu-planning/{menuPlan}/toggle-active', [MenuPlanController::class, 'toggleActive'])->name('menu-planning.toggle-active');
     Route::get('/api/menu-planning/active', [MenuPlanController::class, 'getActiveMenuPlan'])->name('menu-planning.active');
+    // Note: mobile-view route moved to employee-accessible routes section above
 });
 
 // Customer Menu Routes (public access)

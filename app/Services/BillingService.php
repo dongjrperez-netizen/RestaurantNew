@@ -309,13 +309,16 @@ class BillingService
     {
         $date = Carbon::parse($billDate);
 
-        return match ($paymentTerms) {
-            'COD', 'Net 0' => $date,
-            'Net 7' => $date->addDays(7),
-            'Net 15' => $date->addDays(15),
-            'Net 30' => $date->addDays(30),
-            'Net 60' => $date->addDays(60),
-            'Net 90' => $date->addDays(90),
+        // Normalize payment terms to handle different formats
+        $normalizedTerms = strtoupper(str_replace(' ', '_', $paymentTerms));
+
+        return match ($normalizedTerms) {
+            'COD', 'NET_0', 'NET 0' => $date,
+            'NET_7', 'NET 7' => $date->addDays(7),
+            'NET_15', 'NET 15' => $date->addDays(15),
+            'NET_30', 'NET 30' => $date->addDays(30),
+            'NET_60', 'NET 60' => $date->addDays(60),
+            'NET_90', 'NET 90' => $date->addDays(90),
             default => $date->addDays(30) // Default to 30 days
         };
     }

@@ -18,7 +18,8 @@ import {
   SidebarMenuSub,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSubItem
+  SidebarMenuSubItem,
+  SidebarHeader
 } from "@/components/ui/sidebar"
 
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible"
@@ -91,9 +92,14 @@ watch(openCollapsibles, (val) => {
 
 <template>
   <Sidebar class="flex flex-col h-full">
+    <SidebarHeader class="border-b border-sidebar-border p-4">
+      <div class="flex items-center gap-3">
+        <img src="/Logo.png" alt="ServeWise Logo" class="h-8 w-8 object-contain" />
+        <span class="font-semibold text-lg">ServeWise</span>
+      </div>
+    </SidebarHeader>
     <SidebarContent class="flex-1">
       <SidebarGroup>
-        <SidebarGroupLabel>ServeWise</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
             <template v-for="item in navItems" :key="item.title">

@@ -10,10 +10,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import Badge from '@/components/ui/badge/Badge.vue';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import {
+  Combobox,
+  ComboboxAnchor,
+  ComboboxInput,
+  ComboboxList,
+  ComboboxItem,
+  ComboboxEmpty,
+  ComboboxTrigger
+} from '@/components/ui/combobox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { ref, computed, watch } from 'vue';
-import { Plus, Trash2, Clock, Users, Edit, Package, X } from 'lucide-vue-next';
+import { Plus, Trash2, Clock, Users, Edit, Package, X, ChevronDown, Search } from 'lucide-vue-next';
 import ImageUpload from '@/components/ImageUpload.vue';
 
 interface MenuCategory {
@@ -24,7 +33,7 @@ interface MenuCategory {
 interface Ingredient {
   ingredient_id: number;
   ingredient_name: string;
-  unit_of_measure: string;
+  base_unit: string;
   cost_per_unit: number;
   current_stock: number;
 }
@@ -44,6 +53,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface DishIngredient {
   [key: string]: any;
+  unique_key: string;
   ingredient_id?: number;
   ingredient_name: string;
   quantity: number;
@@ -76,17 +86,19 @@ const removeIngredient = (index: number) => {
 const imageUploadRef = ref();
 const selectedIngredientId = ref('');
 const ingredientSearchTerm = ref('');
+const comboboxValue = ref<Ingredient | undefined>();
 
 // Watch for ingredient selection
 watch(selectedIngredientId, (newId) => {
   if (newId) {
     const ingredient = props.ingredients.find(i => i.ingredient_id.toString() === newId);
-    if (ingredient && !form.ingredients.some(i => i.ingredient_name === ingredient.ingredient_name)) {
+    if (ingredient) {
       form.ingredients.push({
+        unique_key: `${ingredient.ingredient_id}_${Date.now()}_${Math.random()}`,
         ingredient_id: ingredient.ingredient_id,
         ingredient_name: ingredient.ingredient_name,
         quantity: 1,
-        unit: ingredient.unit_of_measure,
+        unit: ingredient.base_unit,
         is_optional: false,
         preparation_note: '',
       });
@@ -105,15 +117,84 @@ const filteredIngredients = computed(() => {
   );
 });
 
+// Calculate total stock requirements per ingredient
+const stockRequirements = computed(() => {
+  const requirements: Record<number, { total_needed: number; current_stock: number; ingredient_name: string; base_unit: string }> = {};
+
+  form.ingredients.forEach(dishIngredient => {
+    if (!dishIngredient.ingredient_id || dishIngredient.is_optional) return;
+
+    const ingredientId = dishIngredient.ingredient_id;
+    const ingredient = props.ingredients.find(i => i.ingredient_id === ingredientId);
+
+    if (ingredient) {
+      if (!requirements[ingredientId]) {
+        requirements[ingredientId] = {
+          total_needed: 0,
+          current_stock: ingredient.current_stock,
+          ingredient_name: ingredient.ingredient_name,
+          base_unit: ingredient.base_unit
+        };
+      }
+      requirements[ingredientId].total_needed += dishIngredient.quantity;
+    }
+  });
+
+  return requirements;
+});
+
+// Check if individual ingredient has sufficient stock
+const getIngredientStockStatus = (dishIngredient: DishIngredient) => {
+  if (!dishIngredient.ingredient_id || dishIngredient.is_optional) {
+    return { sufficient: true, available: 0, needed: 0 };
+  }
+
+  const ingredient = props.ingredients.find(i => i.ingredient_id === dishIngredient.ingredient_id);
+  if (!ingredient) return { sufficient: false, available: 0, needed: dishIngredient.quantity };
+
+  const requirements = stockRequirements.value[dishIngredient.ingredient_id];
+  const totalNeeded = requirements?.total_needed || dishIngredient.quantity;
+
+  return {
+    sufficient: ingredient.current_stock >= totalNeeded,
+    available: ingredient.current_stock,
+    needed: totalNeeded
+  };
+};
+
+// Check if the entire dish can be produced
+const canProduceDish = computed(() => {
+  return Object.values(stockRequirements.value).every(req =>
+    req.current_stock >= req.total_needed
+  );
+});
+
+// Get overall stock status message
+const stockStatusMessage = computed(() => {
+  const insufficient = Object.values(stockRequirements.value).filter(req =>
+    req.current_stock < req.total_needed
+  );
+
+  if (insufficient.length === 0) {
+    return { type: 'success', message: 'All ingredients are available in stock!' };
+  } else {
+    return {
+      type: 'warning',
+      message: `${insufficient.length} ingredient(s) have insufficient stock`
+    };
+  }
+});
+
 // Function to add ingredient by ID
 const addIngredientById = (ingredientId: string) => {
   const ingredient = props.ingredients.find(i => i.ingredient_id.toString() === ingredientId);
-  if (ingredient && !form.ingredients.some(i => i.ingredient_name === ingredient.ingredient_name)) {
+  if (ingredient) {
     form.ingredients.push({
+      unique_key: `${ingredient.ingredient_id}_${Date.now()}_${Math.random()}`,
       ingredient_id: ingredient.ingredient_id,
       ingredient_name: ingredient.ingredient_name,
       quantity: 1,
-      unit: ingredient.unit_of_measure,
+      unit: ingredient.base_unit,
       is_optional: false,
       preparation_note: '',
     });
@@ -121,6 +202,15 @@ const addIngredientById = (ingredientId: string) => {
   // Reset search
   ingredientSearchTerm.value = '';
   selectedIngredientId.value = '';
+};
+
+// Handle combobox selection
+const handleComboboxSelect = (value: any) => {
+  if (value && typeof value === 'object' && 'ingredient_id' in value) {
+    addIngredientById(value.ingredient_id.toString());
+    comboboxValue.value = undefined;
+    ingredientSearchTerm.value = '';
+  }
 };
 
 const handleImageUpload = async (file: File) => {
@@ -139,13 +229,19 @@ const handleImageUpload = async (file: File) => {
       body: formData
     });
 
+    const result = await response.json();
+    console.log('Upload response:', result);
+
     if (!response.ok) {
+      // Handle subscription-related errors (403 Forbidden)
+      if (response.status === 403 && result.redirect) {
+        alert(result.message);
+        window.location.href = result.redirect;
+        return;
+      }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = await response.json();
-    console.log('Upload response:', result);
-    
     if (result.success) {
       // Update the form with the server URL
       console.log('Old URL:', form.image_url);
@@ -185,7 +281,7 @@ const submit = () => {
   <Head title="Create New Dish" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="max-w-6xl mx-auto space-y-8">
+     <div class="mx-6 space-y-6">
       <!-- Header -->
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Create New Dish</h1>
@@ -274,63 +370,158 @@ const submit = () => {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <!-- Left: Ingredient Dropdown -->
           <div class="space-y-4">
-            <div class="relative">
-              <Input
-                v-model="ingredientSearchTerm"
-                placeholder="Drop down - Type to search ingredients..."
-                class="cursor-pointer"
-                @focus="ingredientSearchTerm = ''"
-              />
+            <Combobox v-model="comboboxValue" by="ingredient_name" @update:model-value="handleComboboxSelect">
+              <ComboboxAnchor as-child>
+                <ComboboxTrigger as-child>
+                  <Button variant="outline" class="w-full justify-between">
+                    {{ comboboxValue?.ingredient_name ?? 'Drop down - Type to search ingredients...' }}
+                    <ChevronDown class="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </ComboboxTrigger>
+              </ComboboxAnchor>
 
-              <!-- Dropdown Results -->
-              <div
-                v-if="ingredientSearchTerm || filteredIngredients.length > 0"
-                class="absolute z-50 w-full mt-1 bg-background border rounded-lg shadow-lg overflow-hidden"
-                style="max-height: 200px;"
-              >
-                <div class="overflow-y-auto" style="max-height: 200px;">
-                  <div
-                    v-for="ingredient in filteredIngredients"
-                    :key="ingredient.ingredient_id"
-                    @click="addIngredientById(ingredient.ingredient_id.toString())"
-                    class="p-3 hover:bg-muted cursor-pointer border-b border-border/50 last:border-b-0 min-h-[48px] flex items-center"
-                  >
-                    <div class="font-medium">{{ ingredient.ingredient_name }}</div>
-                  </div>
-                  <div v-if="filteredIngredients.length === 0 && ingredientSearchTerm" class="p-3 text-sm text-muted-foreground min-h-[48px] flex items-center">
-                    No ingredients found
-                  </div>
+              <ComboboxList class="w-[--reka-combobox-trigger-width] max-h-[200px]">
+                <div class="relative w-full max-w-sm items-center">
+                  <ComboboxInput
+                    v-model:search-term="ingredientSearchTerm"
+                    class="pl-9 focus-visible:ring-0 border-0 border-b rounded-none h-10"
+                    placeholder="Search ingredients..."
+                  />
+                  <span class="absolute start-0 inset-y-0 flex items-center justify-center px-3">
+                    <Search class="size-4 text-muted-foreground" />
+                  </span>
                 </div>
-              </div>
-            </div>
-            <p class="text-sm text-muted-foreground">
-              But user can also auto search filter when he type the ingredients
-            </p>
+
+                <ComboboxEmpty>No ingredients found</ComboboxEmpty>
+
+                <ComboboxItem
+                  v-for="ingredient in filteredIngredients"
+                  :key="ingredient.ingredient_id"
+                  :value="ingredient"
+                  class="cursor-pointer"
+                >
+                  {{ ingredient.ingredient_name }}
+                </ComboboxItem>
+              </ComboboxList>
+            </Combobox>
           </div>
 
           <!-- Right: Selected Ingredients List -->
           <div class="space-y-4">
             <div class="border rounded-lg p-4 min-h-[200px]">
-              <p class="text-sm font-medium mb-4">Ingredients list that the user choose</p>
-              <div class="space-y-2">
-                <div
-                  v-for="(ingredient, index) in form.ingredients"
-                  :key="index"
-                  class="flex items-center justify-between p-2 bg-muted/30 rounded"
-                >
-                  <span class="text-sm">{{ ingredient.ingredient_name }}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    @click="removeIngredient(index)"
-                    class="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              <div class="flex items-center justify-between mb-4">
+                <p class="text-sm font-medium">Recipe Ingredients</p>
+                <div v-if="form.ingredients.length > 0" class="flex items-center gap-2">
+                  <Badge
+                    :variant="canProduceDish ? 'default' : 'destructive'"
+                    class="text-xs"
                   >
-                    <X class="w-3 h-3" />
-                  </Button>
+                    {{ canProduceDish ? '✓ Can Produce' : '⚠ Insufficient Stock' }}
+                  </Badge>
                 </div>
-                <div v-if="!form.ingredients || form.ingredients.length === 0" class="text-sm text-muted-foreground">
-                  No ingredients selected yet
+              </div>
+
+              <!-- Stock Status Alert -->
+              <div v-if="form.ingredients.length > 0" class="mb-4">
+                <div
+                  :class="[
+                    'p-3 rounded-lg text-sm',
+                    stockStatusMessage.type === 'success'
+                      ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
+                      : 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800'
+                  ]"
+                >
+                  {{ stockStatusMessage.message }}
                 </div>
+              </div>
+
+              <div v-if="!form.ingredients || form.ingredients.length === 0" class="text-sm text-muted-foreground text-center py-8">
+                No ingredients selected yet
+              </div>
+              <div v-else class="space-y-3">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead class="w-[25%]">Ingredient</TableHead>
+                      <TableHead class="w-[12%]">Quantity</TableHead>
+                      <TableHead class="w-[8%]">Unit</TableHead>
+                      <TableHead class="w-[8%]">Optional</TableHead>
+                      <TableHead class="w-[20%]">Stock Status</TableHead>
+                      <TableHead class="w-[17%]">Notes</TableHead>
+                      <TableHead class="w-[10%]">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow
+                      v-for="(ingredient, index) in form.ingredients"
+                      :key="ingredient.unique_key"
+                    >
+                      <TableCell class="font-medium">
+                        {{ ingredient.ingredient_name }}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          v-model.number="ingredient.quantity"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          class="w-20"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          v-model="ingredient.unit"
+                          class="w-16"
+                          placeholder="kg"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Checkbox
+                          v-model:checked="ingredient.is_optional"
+                          class="mx-2"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div v-if="ingredient.ingredient_id" class="text-xs space-y-1">
+                          <div class="flex items-center gap-1">
+                            <Badge
+                              :variant="getIngredientStockStatus(ingredient).sufficient ? 'default' : 'destructive'"
+                              class="text-xs px-1"
+                            >
+                              {{ getIngredientStockStatus(ingredient).sufficient ? '✓' : '⚠' }}
+                            </Badge>
+                            <span :class="getIngredientStockStatus(ingredient).sufficient ? 'text-green-600' : 'text-red-600'">
+                              {{ getIngredientStockStatus(ingredient).available }} {{ ingredient.unit }}
+                            </span>
+                          </div>
+                          <div class="text-muted-foreground">
+                            Need: {{ getIngredientStockStatus(ingredient).needed }} {{ ingredient.unit }}
+                          </div>
+                        </div>
+                        <div v-else class="text-xs text-muted-foreground">
+                          No stock info
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          v-model="ingredient.preparation_note"
+                          placeholder="e.g., diced, chopped..."
+                          class="w-full text-xs"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          @click="removeIngredient(index)"
+                          class="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 class="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           </div>

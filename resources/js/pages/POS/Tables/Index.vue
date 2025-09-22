@@ -9,7 +9,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { type BreadcrumbItem } from '@/types';
 import { ref, computed } from 'vue';
-import { Plus, Search, MoreVertical, Users, Edit, Trash2, Eye } from 'lucide-vue-next';
+import { Plus, Search, MoreVertical, Users, Edit, Trash2, Eye, Calendar, Clock, UserCheck, UserPlus } from 'lucide-vue-next';
+
+interface TableReservation {
+  id: number;
+  customer_name: string;
+  customer_phone: string;
+  party_size: number;
+  reservation_date: string;
+  reservation_time: string;
+  duration_minutes: number;
+  actual_arrival_time?: string | null;
+  dining_start_time?: string | null;
+  status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'cancelled' | 'no_show';
+  special_requests?: string;
+}
 
 interface Table {
   id: number;
@@ -22,6 +36,8 @@ interface Table {
   y_position?: number;
   created_at: string;
   updated_at: string;
+  current_reservation?: TableReservation;
+  next_reservation?: TableReservation;
 }
 
 interface Props {
@@ -92,13 +108,117 @@ const deleteTable = (table: Table) => {
     });
   }
 };
+
+const markArrived = (reservation: TableReservation) => {
+  if (confirm(`Mark ${reservation.customer_name} as arrived?`)) {
+    router.post(`/pos/reservations/${reservation.id}/arrived`, {}, {
+      onSuccess: () => {
+        // Customer marked as arrived
+      },
+    });
+  }
+};
+
+const seatCustomers = (reservation: TableReservation) => {
+  if (confirm(`Seat ${reservation.customer_name} and start their dining experience?`)) {
+    router.post(`/pos/reservations/${reservation.id}/seat`, {}, {
+      onSuccess: () => {
+        // Customers seated successfully
+      },
+    });
+  }
+};
+
+const confirmReservation = (reservation: TableReservation) => {
+  if (confirm(`Confirm reservation for ${reservation.customer_name}?`)) {
+    router.post(`/pos/reservations/${reservation.id}/confirm`, {}, {
+      onSuccess: () => {
+        // Reservation confirmed
+      },
+    });
+  }
+};
+
+const completeReservation = (reservation: TableReservation) => {
+  if (confirm(`Mark ${reservation.customer_name}'s reservation as complete?`)) {
+    router.post(`/pos/reservations/${reservation.id}/complete`, {}, {
+      onSuccess: () => {
+        // Reservation completed
+      },
+    });
+  }
+};
+
+const formatTime = (timeString: string | null | undefined) => {
+  if (!timeString) {
+    return 'Not set';
+  }
+
+  try {
+    // Handle time string (HH:MM or HH:MM:SS)
+    const time = new Date(`1970-01-01T${timeString}`);
+    if (isNaN(time.getTime())) {
+      return timeString; // Return original if parsing fails
+    }
+    return time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  } catch (error) {
+    return timeString; // Return original if parsing fails
+  }
+};
+
+const formatDateTime = (dateTimeString: string | null | undefined) => {
+  if (!dateTimeString) {
+    return 'Not set';
+  }
+
+  try {
+    const date = new Date(dateTimeString);
+    if (isNaN(date.getTime())) {
+      return 'Invalid date';
+    }
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  } catch (error) {
+    return 'Invalid date';
+  }
+};
+
+const formatNextReservation = (dateString: string | null | undefined, timeString: string | null | undefined) => {
+  if (!dateString || !timeString) {
+    return 'Not set';
+  }
+
+  try {
+    // Handle different date formats - could be datetime or just date
+    let date = new Date(dateString);
+
+    // If that fails, try parsing just the date part
+    if (isNaN(date.getTime()) && dateString.includes(' ')) {
+      date = new Date(dateString.split(' ')[0]);
+    }
+
+    const time = new Date(`1970-01-01T${timeString}`);
+
+    if (isNaN(date.getTime()) || isNaN(time.getTime())) {
+      console.log('Date parsing failed:', { dateString, timeString });
+      return 'Invalid date';
+    }
+
+    const dateFormatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const timeFormatted = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+    return `${dateFormatted} ${timeFormatted}`;
+  } catch (error) {
+    console.error('Error formatting reservation date:', error, { dateString, timeString });
+    return 'Invalid date';
+  }
+};
 </script>
 
 <template>
   <Head title="Tables" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6">
+    <div class="space-y-6 mx-6">
       <!-- Header -->
       <div class="flex justify-between items-center">
         <div>
@@ -205,6 +325,8 @@ const deleteTable = (table: Table) => {
                 <TableHead>Name</TableHead>
                 <TableHead>Seats</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Current/Next Reservation</TableHead>
+                <TableHead>Reservation Actions</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead class="w-20">Actions</TableHead>
               </TableRow>
@@ -223,6 +345,107 @@ const deleteTable = (table: Table) => {
                   <Badge :class="getStatusColor(table.status)" class="text-white">
                     {{ getStatusText(table.status) }}
                   </Badge>
+                </TableCell>
+                <TableCell>
+                  <div v-if="table.current_reservation" class="text-xs space-y-1">
+                    <div class="font-medium text-red-600">Current: {{ table.current_reservation.customer_name }}</div>
+                    <div class="text-muted-foreground flex items-center space-x-1">
+                      <Users class="w-3 h-3" />
+                      <span>{{ table.current_reservation.party_size }}</span>
+                    </div>
+                    <div class="text-muted-foreground space-y-0.5">
+                      <div class="flex items-center space-x-1">
+                        <Clock class="w-3 h-3" />
+                        <span>Reserved: {{ formatTime(table.current_reservation.reservation_time) }}</span>
+                      </div>
+                      <div v-if="table.current_reservation.actual_arrival_time" class="flex items-center space-x-1">
+                        <Clock class="w-3 h-3" />
+                        <span>Arrived: {{ formatDateTime(table.current_reservation.actual_arrival_time) }}</span>
+                      </div>
+                      <div v-if="table.current_reservation.dining_start_time" class="flex items-center space-x-1">
+                        <Clock class="w-3 h-3" />
+                        <span>Started: {{ formatDateTime(table.current_reservation.dining_start_time) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else-if="table.next_reservation" class="text-xs space-y-1">
+                    <div class="font-medium text-yellow-600">Next: {{ table.next_reservation.customer_name }}</div>
+                    <div class="text-muted-foreground flex items-center space-x-1">
+                      <Users class="w-3 h-3" />
+                      <span>{{ table.next_reservation.party_size }}</span>
+                      <Clock class="w-3 h-3 ml-2" />
+                      <span>{{ formatNextReservation(table.next_reservation.reservation_date, table.next_reservation.reservation_time) }}</span>
+                    </div>
+                  </div>
+                  <div v-else class="text-xs text-muted-foreground">No reservations</div>
+                </TableCell>
+                <TableCell>
+                  <!-- Reservation Action Buttons -->
+                  <div v-if="table.current_reservation" class="flex flex-col space-y-1">
+                    <!-- Pending Reservation Actions -->
+                    <div v-if="table.current_reservation.status === 'pending'" class="flex flex-col space-y-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        @click="confirmReservation(table.current_reservation!)"
+                        class="text-xs h-7"
+                      >
+                        <UserCheck class="w-3 h-3 mr-1" />
+                        Confirm
+                      </Button>
+                    </div>
+
+                    <!-- Confirmed Reservation Actions -->
+                    <div v-else-if="table.current_reservation.status === 'confirmed'" class="flex flex-col space-y-1">
+                      <Button
+                        v-if="!table.current_reservation.actual_arrival_time"
+                        size="sm"
+                        variant="default"
+                        @click="markArrived(table.current_reservation!)"
+                        class="text-xs h-7 bg-blue-600 hover:bg-blue-700"
+                      >
+                        <UserPlus class="w-3 h-3 mr-1" />
+                        Mark Arrived
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        @click="seatCustomers(table.current_reservation!)"
+                        class="text-xs h-7 bg-green-600 hover:bg-green-700"
+                      >
+                        <Users class="w-3 h-3 mr-1" />
+                        Seat Now
+                      </Button>
+                    </div>
+
+                    <!-- Seated Reservation Actions -->
+                    <div v-else-if="table.current_reservation.status === 'seated'" class="flex flex-col space-y-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        @click="completeReservation(table.current_reservation!)"
+                        class="text-xs h-7"
+                      >
+                        <Clock class="w-3 h-3 mr-1" />
+                        Complete
+                      </Button>
+                    </div>
+                  </div>
+                  <div v-else-if="table.next_reservation" class="flex flex-col space-y-1">
+                    <!-- Next Reservation Actions -->
+                    <div v-if="table.next_reservation.status === 'pending'" class="flex flex-col space-y-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        @click="confirmReservation(table.next_reservation!)"
+                        class="text-xs h-7"
+                      >
+                        <UserCheck class="w-3 h-3 mr-1" />
+                        Confirm
+                      </Button>
+                    </div>
+                  </div>
+                  <div v-else class="text-xs text-muted-foreground">-</div>
                 </TableCell>
                 <TableCell>
                   <span class="text-sm text-muted-foreground">
@@ -244,6 +467,12 @@ const deleteTable = (table: Table) => {
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild>
+                        <Link :href="`/pos/reservations/create?table_id=${table.id}`">
+                          <Calendar class="w-4 h-4 mr-2" />
+                          Reserve Table
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
                         <Link :href="`/pos/tables/${table.id}/edit`">
                           <Edit class="w-4 h-4 mr-2" />
                           Edit
@@ -261,7 +490,7 @@ const deleteTable = (table: Table) => {
                 </TableCell>
               </TableRow>
               <TableRow v-if="filteredTables.length === 0">
-                <TableCell colspan="6" class="text-center py-8">
+                <TableCell colspan="8" class="text-center py-8">
                   <div class="text-muted-foreground">
                     <Users class="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                     <div class="text-lg mb-2">No tables found</div>

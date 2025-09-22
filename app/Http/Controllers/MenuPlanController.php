@@ -43,11 +43,17 @@ class MenuPlanController extends Controller
 
         $dishes = Dish::where('restaurant_id', $restaurantId)
             ->where('status', 'active')
+            ->with('ingredients')
             ->orderBy('dish_name')
+            ->get();
+
+        $ingredients = \App\Models\Ingredients::where('restaurant_id', $restaurantId)
+            ->orderBy('ingredient_name')
             ->get();
 
         return Inertia::render('MenuPlanning/Create', [
             'dishes' => $dishes,
+            'ingredients' => $ingredients,
         ]);
     }
 
@@ -71,7 +77,7 @@ class MenuPlanController extends Controller
             'dishes.*.planned_quantity' => 'required|integer|min:1',
             'dishes.*.meal_type' => ['nullable', Rule::in(['breakfast', 'lunch', 'dinner', 'snack'])],
             'dishes.*.planned_date' => 'required|date',
-            'dishes.*.day_of_week' => 'nullable|integer|min:1|max:7',
+            'dishes.*.day_of_week' => 'nullable|integer|min:0|max:6',
             'dishes.*.notes' => 'nullable|string',
         ]);
 
@@ -139,26 +145,31 @@ class MenuPlanController extends Controller
 
     public function update(Request $request, $id)
     {
-        $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        try {
+            \Log::info('MenuPlan update started', ['id' => $id, 'data' => $request->all()]);
 
-        $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
+            $user = Auth::user();
+            $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
 
-        $request->validate([
-            'plan_name' => 'required|string|max:255',
-            'plan_type' => ['required', Rule::in(['daily', 'weekly'])],
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'description' => 'nullable|string',
-            'is_active' => 'boolean',
-            'dishes' => 'array',
-            'dishes.*.dish_id' => 'required|exists:dishes,dish_id',
-            'dishes.*.planned_quantity' => 'required|integer|min:1',
-            'dishes.*.meal_type' => ['nullable', Rule::in(['breakfast', 'lunch', 'dinner', 'snack'])],
-            'dishes.*.planned_date' => 'required|date',
-            'dishes.*.day_of_week' => 'nullable|integer|min:1|max:7',
-            'dishes.*.notes' => 'nullable|string',
-        ]);
+            $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
+
+            $request->validate([
+                'plan_name' => 'required|string|max:255',
+                'plan_type' => ['required', Rule::in(['daily', 'weekly'])],
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+                'description' => 'nullable|string',
+                'is_active' => 'boolean',
+                'dishes' => 'array',
+                'dishes.*.dish_id' => 'required|exists:dishes,dish_id',
+                'dishes.*.planned_quantity' => 'required|integer|min:1',
+                'dishes.*.meal_type' => ['nullable', Rule::in(['breakfast', 'lunch', 'dinner', 'snack'])],
+                'dishes.*.planned_date' => 'required|date',
+                'dishes.*.day_of_week' => 'nullable|integer|min:0|max:6',
+                'dishes.*.notes' => 'nullable|string',
+            ]);
+
+            \Log::info('MenuPlan validation passed');
 
         $menuPlan->update([
             'plan_name' => $request->plan_name,
@@ -186,8 +197,18 @@ class MenuPlanController extends Controller
             }
         }
 
-        return redirect()->route('menu-planning.show', $menuPlan->menu_plan_id)
-            ->with('success', 'Menu plan updated successfully.');
+            \Log::info('MenuPlan update completed successfully');
+
+            return redirect()->route('menu-planning.show', $menuPlan->menu_plan_id)
+                ->with('success', 'Menu plan updated successfully.');
+
+        } catch (\Exception $e) {
+            \Log::error('MenuPlan update failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Failed to update menu plan: ' . $e->getMessage());
+        }
     }
 
     public function destroy($id)
@@ -247,5 +268,64 @@ class MenuPlanController extends Controller
 
         return redirect()->back()
             ->with('success', "Menu plan {$status} successfully.");
+    }
+
+    public function mobileView($id, $date)
+    {
+        $user = Auth::user();
+        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+
+        if (! $restaurantId) {
+            return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
+        }
+
+        $menuPlan = MenuPlan::with(['menuPlanDishes.dish.category'])
+            ->forRestaurant($restaurantId)
+            ->findOrFail($id);
+
+        // Get dishes for the specific date
+        $dishesForDate = $menuPlan->menuPlanDishes()
+            ->with(['dish.category'])
+            ->whereDate('planned_date', $date)
+            ->get();
+
+        // Group dishes by category
+        $dishesByCategory = $dishesForDate->groupBy(function ($menuPlanDish) {
+            return $menuPlanDish->dish->category->category_name ?? 'Uncategorized';
+        })->map(function ($dishes) {
+            return $dishes->map(function ($menuPlanDish) {
+                return [
+                    'dish_id' => $menuPlanDish->dish->dish_id,
+                    'dish_name' => $menuPlanDish->dish->dish_name,
+                    'description' => $menuPlanDish->dish->description,
+                    'price' => $menuPlanDish->dish->price,
+                    'image_url' => $menuPlanDish->dish->image_url,
+                    'allergens' => $menuPlanDish->dish->allergens,
+                    'dietary_tags' => $menuPlanDish->dish->dietary_tags,
+                    'calories' => $menuPlanDish->dish->calories,
+                    'preparation_time' => $menuPlanDish->dish->preparation_time,
+                    'planned_quantity' => $menuPlanDish->planned_quantity,
+                    'meal_type' => $menuPlanDish->meal_type,
+                    'notes' => $menuPlanDish->notes,
+                ];
+            });
+        });
+
+        // For testing employee login redirect - temporarily use test view
+        if (request()->query('test') === 'redirect') {
+            return Inertia::render('MenuPlanning/MobileViewTest', [
+                'menuPlan' => $menuPlan,
+                'date' => $date,
+                'dishesByCategory' => $dishesByCategory,
+                'totalDishes' => $dishesForDate->count(),
+            ]);
+        }
+
+        return Inertia::render('MenuPlanning/MobileView', [
+            'menuPlan' => $menuPlan,
+            'selectedDate' => $date,
+            'dishesByCategory' => $dishesByCategory,
+            'totalDishes' => $dishesForDate->count(),
+        ]);
     }
 }

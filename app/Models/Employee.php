@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -39,7 +40,32 @@ class Employee extends Authenticatable
         return [
             'date_of_birth' => 'date',
             'password' => 'hashed',
+            'role_id' => UserRole::class,
         ];
+    }
+
+    /**
+     * Get the name of the unique identifier for the user.
+     */
+    public function getAuthIdentifierName(): string
+    {
+        return $this->getKeyName(); // Use primary key (employee_id)
+    }
+
+    /**
+     * Get the unique identifier for the user.
+     */
+    public function getAuthIdentifier()
+    {
+        return $this->getKey(); // Return the primary key value
+    }
+
+    /**
+     * Get the password for the user.
+     */
+    public function getAuthPasswordName(): string
+    {
+        return 'password';
     }
 
     public function role()
@@ -50,6 +76,12 @@ class Employee extends Authenticatable
     public function restaurant()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function subscription()
+    {
+        // Employee inherits subscription from the restaurant owner (User)
+        return $this->restaurant->subscription();
     }
 
     public function getFullNameAttribute()

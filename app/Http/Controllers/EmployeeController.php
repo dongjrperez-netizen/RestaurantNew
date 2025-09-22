@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 
 class EmployeeController extends Controller
@@ -61,7 +62,7 @@ class EmployeeController extends Controller
             'lastname' => 'required|string|max:255',
             'middlename' => 'nullable|string|max:255',
             'email' => 'required|string|email|max:255|unique:employees',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'date_of_birth' => 'required|date|before:today',
             'gender' => 'required|in:male,female,other',
             'role_id' => 'required|exists:roles,id',

@@ -36,13 +36,28 @@ class CheckSubscription
                         'remaining_days' => 0,
                     ]);
 
-                    // Update user role back to 1 (regular user)
-                    // $user->update(['role_id' => 1]);
+                    // Check if this is an API request
+                    if ($request->expectsJson() || $request->is('api/*')) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Your subscription has expired. Please renew your subscription to continue.',
+                            'redirect' => route('subscriptions.renew')
+                        ], 403);
+                    }
 
                     return redirect()->route('subscriptions.renew')
                         ->withErrors(['error' => 'Your subscription has expired. Please renew your subscription to continue.']);
                 }
             } else {
+                // Check if this is an API request
+                if ($request->expectsJson() || $request->is('api/*')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'You need an active subscription to access this feature.',
+                        'redirect' => route('subscriptions.index')
+                    ], 403);
+                }
+
                 // No active subscription found, redirect to subscriptions page
                 return redirect()->route('subscriptions.index')
                     ->withErrors(['error' => 'You need an active subscription to access this feature.']);

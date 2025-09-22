@@ -68,8 +68,8 @@ const submit = () => {
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-900">Create Employee</h1>
-                    <p class="text-gray-600 mt-1">Add a new employee to your restaurant</p>
+                    <h1 class="text-2xl font-bold text-foreground">Create Employee</h1>
+                    <p class="text-muted-foreground mt-1">Add a new employee to your restaurant</p>
                 </div>
                 <Link :href="route('employees.index')">
                     <Button variant="outline">Back to Employees</Button>
@@ -184,7 +184,7 @@ const submit = () => {
 
                         <!-- Account Information -->
                         <div class="space-y-4">
-                            <h3 class="text-lg font-semibold text-gray-900">Account Information</h3>
+                            <h3 class="text-lg font-semibold text-foreground">Account Information</h3>
                             
                             <div>
                                 <Label for="email">Email *</Label>

@@ -65,6 +65,10 @@ const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString();
 };
 
+const formatDateFromObject = (date: Date) => {
+  return date.toLocaleDateString();
+};
+
 const formatLongDate = (date: Date) => {
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -172,19 +176,16 @@ const getTotalDishesForDate = (date: Date) => {
   return getDishesForDate(date).reduce((total, dish) => total + dish.planned_quantity, 0);
 };
 
-// Navigate to customer menu view for specific date
+const getDishCountForDate = (date: Date) => {
+  return getDishesForDate(date).length;
+};
+
+// Navigate to mobile menu view for specific date
 const viewDayMenu = (date: Date) => {
   const dateString = date.toISOString().split('T')[0];
-  const dishesForDate = getDishesForDate(date);
 
-  // Store the dishes in session storage temporarily
-  sessionStorage.setItem('menuPlanDishes', JSON.stringify({
-    date: dateString,
-    dishes: dishesForDate
-  }));
-
-  // Navigate to customer menu view
-  window.open(`/customer-menu?date=${dateString}&plan=${props.menuPlan.menu_plan_id}`, '_blank');
+  // Navigate to mobile menu view
+  window.open(`/menu-planning/${props.menuPlan.menu_plan_id}/mobile-view/${dateString}`, '_blank');
 };
 </script>
 
@@ -244,12 +245,6 @@ const viewDayMenu = (date: Date) => {
         </div>
       </div>
 
-      <!-- Plan Description -->
-      <Card v-if="menuPlan.description">
-        <CardContent class="pt-6">
-          <p class="text-muted-foreground">{{ menuPlan.description }}</p>
-        </CardContent>
-      </Card>
 
       <!-- Navigation -->
       <div class="flex items-center justify-between">
@@ -264,7 +259,7 @@ const viewDayMenu = (date: Date) => {
 
         <div class="text-center">
           <h2 class="text-xl font-semibold">
-            {{ viewMode === 'day' ? formatLongDate(currentViewDate) : `Week of ${formatDate(getWeekDates[0])}` }}
+            {{ viewMode === 'day' ? formatLongDate(currentViewDate) : `Week of ${formatDateFromObject(getWeekDates[0])}` }}
           </h2>
           <div v-if="!isWithinPlanRange" class="text-sm text-orange-600 mt-1">
             ⚠️ Outside menu plan range ({{ formatDate(menuPlan.start_date) }} - {{ formatDate(menuPlan.end_date) }})
@@ -323,7 +318,7 @@ const viewDayMenu = (date: Date) => {
               <div class="text-sm font-medium">{{ date.toLocaleDateString('en-US', { weekday: 'short' }) }}</div>
               <div class="text-2xl font-bold">{{ date.getDate() }}</div>
               <div class="text-xs text-muted-foreground">
-                {{ getTotalDishesForDate(date) }} dishes
+                {{ getDishCountForDate(date) }} dishes
               </div>
             </div>
 
@@ -335,7 +330,7 @@ const viewDayMenu = (date: Date) => {
                 class="w-full text-xs"
                 @click="viewDayMenu(date)"
               >
-                View Plan ({{ getDishesForDate(date).length }} dishes)
+                View Plan ({{ getDishCountForDate(date) }} dishes)
               </Button>
             </div>
 
@@ -355,50 +350,6 @@ const viewDayMenu = (date: Date) => {
         </div>
       </div>
 
-      <!-- Summary Stats -->
-      <div class="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle class="text-sm font-medium">Total Dishes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="text-2xl font-bold">{{ menuPlan.menu_plan_dishes.length }}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle class="text-sm font-medium">Unique Dishes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="text-2xl font-bold">
-              {{ new Set(menuPlan.menu_plan_dishes.map(d => d.dish_id)).size }}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle class="text-sm font-medium">Total Quantity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="text-2xl font-bold">
-              {{ menuPlan.menu_plan_dishes.reduce((sum, dish) => sum + dish.planned_quantity, 0) }}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle class="text-sm font-medium">Plan Duration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div class="text-2xl font-bold">
-              {{ Math.ceil((new Date(menuPlan.end_date).getTime() - new Date(menuPlan.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1 }} days
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   </AppLayout>
 </template>

@@ -281,7 +281,7 @@ const draftDishes = computed(() => (props.dishes || []).filter(dish => dish.stat
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">
+                  <Badge variant="secondary">
                     {{ dish.category?.category_name || 'Uncategorized' }}
                   </Badge>
                 </TableCell>

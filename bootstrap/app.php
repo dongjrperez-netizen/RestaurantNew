@@ -3,6 +3,7 @@
 use App\Http\Middleware\AdminAuth;
 use App\Http\Middleware\CheckDemoSubscription;
 use App\Http\Middleware\CheckSubscription;
+use App\Http\Middleware\EmployeeAuth;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.demo.subscription' => CheckDemoSubscription::class,
             'check.subscription' => CheckSubscription::class,
             'admin.auth' => AdminAuth::class,
+            'employee.auth' => EmployeeAuth::class,
         ]);
     })
 

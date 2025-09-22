@@ -13,6 +13,7 @@ import { ref } from 'vue';
 defineProps<{
     status?: string;
     canResetPassword: boolean;
+    unified?: boolean;
 }>();
 
 const form = useForm({
@@ -24,8 +25,9 @@ const form = useForm({
 const loginError = ref('');
 
 const submit = () => {
-    loginError.value = ''; // Reset error message
-    
+    loginError.value = ''; 
+
+
     form.post(route('login'), {
         onFinish: () => form.reset('password'),
         onError: (errors) => {
@@ -34,12 +36,15 @@ const submit = () => {
                 loginError.value = errors.status;
             }
         },
+        onSuccess: () => {
+          
+        }
     });
 };
 </script>
 
 <template>
-    <AuthBase title="Welcome Back" description="Sign in to manage your restaurant with ServeWise">
+    <AuthBase title="Welcome Back" description="Restaurant owners and employees sign in to ServeWise">
 
         <Head title="Sign In - ServeWise" />
 
@@ -69,7 +74,7 @@ const submit = () => {
                         :tabindex="1"
                         autocomplete="email"
                         v-model="form.email"
-                        placeholder="Enter your email address"
+                        placeholder="Enter your email address (owner or employee)"
                         class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-colors"
                     />
                     <InputError :message="form.errors.email" />
@@ -120,7 +125,7 @@ const submit = () => {
                 :disabled="form.processing"
             >
                 <LoaderCircle v-if="form.processing" class="h-5 w-5 animate-spin mr-2" />
-                {{ form.processing ? 'Signing in...' : 'Sign In' }}
+                {{ form.processing ? 'Signing in...' : 'Sign In to ServeWise' }}
             </Button>
 
             <!-- Divider -->
@@ -135,13 +140,21 @@ const submit = () => {
 
             <!-- Sign up link -->
             <div class="text-center">
-                <TextLink 
-                    :href="route('register')" 
+                <TextLink
+                    :href="route('register')"
                     :tabindex="5"
                     class="w-full inline-flex justify-center items-center px-4 py-3 border border-orange-500 text-orange-500 font-semibold rounded-lg hover:bg-orange-50 transition-colors"
                 >
                     Create your account
                 </TextLink>
+            </div>
+
+            <!-- Unified login info -->
+            <div class="text-center">
+                <p class="text-sm text-gray-600">
+                    This login page supports both restaurant owners and employees.
+                    <br>Simply enter your email and password to access your account.
+                </p>
             </div>
 
             <!-- Additional help -->

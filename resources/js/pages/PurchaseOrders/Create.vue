@@ -188,7 +188,7 @@ const submit = () => {
   <Head title="Create Purchase Order" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6">
+     <div class="mx-6 space-y-6">
       <!-- Header -->
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Create Purchase Order</h1>
@@ -231,7 +231,7 @@ const submit = () => {
                   v-model="form.expected_delivery_date"
                   type="date"
                   readonly
-                  class="bg-gray-50 cursor-not-allowed"
+                  class="bg-muted cursor-not-allowed"
                 />
                 <div class="text-xs text-muted-foreground">
                   <span v-if="expectedDeliveryDate">
@@ -317,8 +317,9 @@ const submit = () => {
                     <TableCell>
                       <Select 
                         v-model="orderItems[index].ingredient_id"
-                        @update:model-value="(value) => onIngredientSelect(index, value)"
-                      >
+                        @update:model-value="(value) => value && onIngredientSelect(index, Number(value))"
+
+                        >
                         <SelectTrigger>
                           <SelectValue placeholder="Select ingredient" />
                         </SelectTrigger>
@@ -344,13 +345,14 @@ const submit = () => {
                           :max="getSelectedOffering(index)?.minimum_order_quantity"
                           placeholder="0"
                           class="w-24"
-                          :class="{ 'border-red-500': getSelectedOffering(index) && item.ordered_quantity > getSelectedOffering(index).minimum_order_quantity }"
+                          :class="{ 'border-red-500': getSelectedOffering(index) && getSelectedOffering(index)?.minimum_order_quantity !== undefined && item.ordered_quantity > getSelectedOffering(index)!.minimum_order_quantity }"
                         />
                         <div v-if="getSelectedOffering(index)" class="text-xs text-muted-foreground">
-                          Max: {{ getSelectedOffering(index).minimum_order_quantity }} {{ getSelectedOffering(index).package_unit }}
+                          Max: {{ getSelectedOffering(index)?.minimum_order_quantity }} {{ getSelectedOffering(index)?.package_unit }}
                         </div>
-                        <div v-if="getSelectedOffering(index) && item.ordered_quantity > getSelectedOffering(index).minimum_order_quantity"
-                             class="text-xs text-red-600">
+                        <div 
+                          v-if="getSelectedOffering(index) && getSelectedOffering(index)?.minimum_order_quantity !== undefined && item.ordered_quantity > getSelectedOffering(index)!.minimum_order_quantity"
+                          class="text-xs text-red-600">
                           Exceeds maximum order quantity
                         </div>
                       </div>

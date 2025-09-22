@@ -141,12 +141,14 @@ const addIngredientById = (ingredientId: string) => {
 const handleImageUpload = async (file: File) => {
   console.log('Starting upload for file:', file.name);
 
+  let response: Response | undefined;
+
   try {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('type', 'dish');
 
-    const response = await fetch('/api/images/upload', {
+    response = await fetch('/api/images/upload', {
       method: 'POST',
       headers: {
         'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
@@ -154,12 +156,29 @@ const handleImageUpload = async (file: File) => {
       body: formData
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers.get('content-type'));
+
+    let result;
+    try {
+      result = await response.json();
+      console.log('Upload response:', result);
+    } catch (jsonError) {
+      console.error('Failed to parse JSON response:', jsonError);
+      const textResponse = await response.text();
+      console.error('Response text:', textResponse);
+      throw new Error(`Server returned non-JSON response: ${response.status} - ${textResponse.substring(0, 200)}`);
     }
 
-    const result = await response.json();
-    console.log('Upload response:', result);
+    if (!response.ok) {
+      // Handle subscription-related errors (403 Forbidden)
+      if (response.status === 403 && result.redirect) {
+        alert(result.message);
+        window.location.href = result.redirect;
+        return;
+      }
+      throw new Error(`HTTP error! status: ${response.status} - ${result.message || 'Unknown error'}`);
+    }
 
     if (result.success) {
       // Update the form with the server URL
@@ -173,7 +192,14 @@ const handleImageUpload = async (file: File) => {
     }
   } catch (error) {
     console.error('Upload error:', error);
-    handleImageError('Failed to upload image. Please try again.');
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      responseStatus: response?.status,
+      url: '/api/images/upload'
+    });
+    const errorMessage = (error instanceof Error) ? error.message : String(error);
+    handleImageError(`Failed to upload image: ${errorMessage}`);
   } finally {
     // Reset uploading state
     imageUploadRef.value?.resetUploadingState?.();
@@ -204,7 +230,7 @@ const submit = () => {
       <!-- Header -->
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Edit Dish</h1>
-        <p class="text-muted-foreground">Update dish information</p>
+        <p class="text-gray-600 dark:text-gray-400">Update dish information</p>
       </div>
 
       <form @submit.prevent="submit" class="space-y-8">
@@ -307,17 +333,17 @@ const submit = () => {
                     v-for="ingredient in filteredIngredients"
                     :key="ingredient.ingredient_id"
                     @click="addIngredientById(ingredient.ingredient_id.toString())"
-                    class="p-3 hover:bg-muted cursor-pointer border-b border-border/50 last:border-b-0 min-h-[48px] flex items-center"
+                    class="p-3 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-200 dark:border-gray-700 last:border-b-0 min-h-[48px] flex items-center"
                   >
                     <div class="font-medium">{{ ingredient.ingredient_name }}</div>
                   </div>
-                  <div v-if="filteredIngredients.length === 0 && ingredientSearchTerm" class="p-3 text-sm text-muted-foreground min-h-[48px] flex items-center">
+                  <div v-if="filteredIngredients.length === 0 && ingredientSearchTerm" class="p-3 text-sm text-gray-600 dark:text-gray-400 min-h-[48px] flex items-center">
                     No ingredients found
                   </div>
                 </div>
               </div>
             </div>
-            <p class="text-sm text-muted-foreground">
+            <p class="text-sm text-gray-600 dark:text-gray-400">
               But user can also auto search filter when he type the ingredients
             </p>
           </div>
@@ -330,7 +356,7 @@ const submit = () => {
                 <div
                   v-for="(ingredient, index) in form.ingredients"
                   :key="index"
-                  class="flex items-center justify-between p-2 bg-muted/30 rounded"
+                  class="flex items-center justify-between p-2 bg-gray-100 dark:bg-gray-800 rounded"
                 >
                   <span class="text-sm">{{ ingredient.ingredient_name }}</span>
                   <Button
@@ -342,7 +368,7 @@ const submit = () => {
                     <X class="w-3 h-3" />
                   </Button>
                 </div>
-                <div v-if="!form.ingredients || form.ingredients.length === 0" class="text-sm text-muted-foreground">
+                <div v-if="!form.ingredients || form.ingredients.length === 0" class="text-sm text-gray-600 dark:text-gray-400">
                   No ingredients selected yet
                 </div>
               </div>

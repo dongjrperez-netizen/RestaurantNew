@@ -72,7 +72,7 @@ const getTotalItems = (items: PurchaseOrderItem[]) => {
   <Head title="Purchase Orders" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6">
+    <div class="space-y-6 mx-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>

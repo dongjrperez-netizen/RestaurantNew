@@ -96,7 +96,7 @@ const getPaymentProgress = (bill: Bill) => {
   <Head title="Supplier Bills" />
 
   <AppLayout :breadcrumbs="breadcrumbs">
-    <div class="space-y-6">
+      <div class="mx-6 space-y-6">
       <!-- Header -->
       <div class="flex items-center justify-between">
         <div>
