@@ -17,7 +17,7 @@ class MenuController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $query = Dish::with(['category'])
             ->byRestaurant($restaurantId);
@@ -53,7 +53,7 @@ class MenuController extends Controller
     public function create()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $categories = MenuCategory::byRestaurant($restaurantId)
             ->active()
@@ -79,11 +79,28 @@ class MenuController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
+        $restaurantId = $user->restaurantData->id ?? null;
 
-        $request->validate([
+        \Log::info('Menu store request received', [
+            'user_id' => $user->id,
+            'restaurant_id' => $restaurantId,
+            'request_data' => $request->all()
+        ]);
+
+        $validated = $request->validate([
             'dish_name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category_id' => 'required|exists:menu_categories,category_id',
+            'category_id' => [
+                'required',
+                'integer',
+                function ($attribute, $value, $fail) use ($restaurantId) {
+                    if (!MenuCategory::where('category_id', $value)
+                        ->where('restaurant_id', $restaurantId)
+                        ->exists()) {
+                        $fail('The selected category is invalid.');
+                    }
+                }
+            ],
             'image_url' => 'nullable|string|max:500',
             'price' => 'required|numeric|min:0',
             'ingredients' => 'required|array|min:1',
@@ -91,23 +108,26 @@ class MenuController extends Controller
             'ingredients.*.ingredient_name' => 'required|string|max:255',
             'ingredients.*.quantity' => 'required|numeric|min:0.01',
             'ingredients.*.unit' => 'required|string|max:50',
-            'ingredients.*.is_optional' => 'boolean',
+            'ingredients.*.is_optional' => 'nullable|boolean',
+            'ingredients.*.preparation_note' => 'nullable|string|max:255',
         ]);
 
-        DB::transaction(function () use ($request, $user) {
+        \Log::info('Menu validation passed', ['validated_data' => $validated]);
+
+        DB::transaction(function () use ($validated, $user) {
             // Create the dish
             $dish = Dish::create([
-                'restaurant_id' => $user->restaurant_id ?? ($user->restaurantData->id ?? null),
-                'dish_name' => $request->dish_name,
-                'description' => $request->description,
-                'category_id' => $request->category_id,
-                'image_url' => $request->image_url,
-                'price' => $request->price,
+                'restaurant_id' => $user->restaurantData->id ?? null,
+                'dish_name' => $validated['dish_name'],
+                'description' => $validated['description'],
+                'category_id' => $validated['category_id'],
+                'image_url' => $validated['image_url'],
+                'price' => $validated['price'],
                 'status' => 'active', // Set as active by default for simplified workflow
             ]);
 
             // Add ingredients
-            foreach ($request->ingredients as $ingredientData) {
+            foreach ($validated['ingredients'] as $ingredientData) {
                 $ingredient = null;
 
                 if (!empty($ingredientData['ingredient_id']) && $ingredientData['ingredient_id'] > 0) {
@@ -116,7 +136,7 @@ class MenuController extends Controller
                 } else {
                     // Custom ingredient - create new one
                     $ingredient = Ingredients::create([
-                        'restaurant_id' => $user->restaurant_id ?? ($user->restaurantData->id ?? null),
+                        'restaurant_id' => $user->restaurantData->id ?? null,
                         'ingredient_name' => $ingredientData['ingredient_name'],
                         'base_unit' => $ingredientData['unit'],
                         'current_stock' => 0,
@@ -136,6 +156,8 @@ class MenuController extends Controller
 
         });
 
+        \Log::info('Menu created successfully');
+
         return redirect()->route('menu.index')->with('success', 'Dish created successfully!');
     }
 
@@ -154,7 +176,7 @@ class MenuController extends Controller
     public function edit(Dish $dish)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $dish->load([
             'dishIngredients.ingredient'
@@ -262,7 +284,7 @@ class MenuController extends Controller
     public function analytics()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         // Get analytics data
         $analytics = [

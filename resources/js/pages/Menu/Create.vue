@@ -33,7 +33,7 @@ interface MenuCategory {
 interface Ingredient {
   ingredient_id: number;
   ingredient_name: string;
-  base_unit: string;
+  unit_of_measure: string;
   cost_per_unit: number;
   current_stock: number;
 }
@@ -66,7 +66,7 @@ interface DishIngredient {
 const form = useForm({
   dish_name: '',
   description: '',
-  category_id: '',
+  category_id: null as number | null,
   image_url: '',
   price: '',
   ingredients: [] as DishIngredient[],
@@ -98,7 +98,7 @@ watch(selectedIngredientId, (newId) => {
         ingredient_id: ingredient.ingredient_id,
         ingredient_name: ingredient.ingredient_name,
         quantity: 1,
-        unit: ingredient.base_unit,
+        unit: ingredient.unit_of_measure || 'unit',
         is_optional: false,
         preparation_note: '',
       });
@@ -119,7 +119,7 @@ const filteredIngredients = computed(() => {
 
 // Calculate total stock requirements per ingredient
 const stockRequirements = computed(() => {
-  const requirements: Record<number, { total_needed: number; current_stock: number; ingredient_name: string; base_unit: string }> = {};
+  const requirements: Record<number, { total_needed: number; current_stock: number; ingredient_name: string; unit_of_measure: string }> = {};
 
   form.ingredients.forEach(dishIngredient => {
     if (!dishIngredient.ingredient_id || dishIngredient.is_optional) return;
@@ -133,7 +133,7 @@ const stockRequirements = computed(() => {
           total_needed: 0,
           current_stock: ingredient.current_stock,
           ingredient_name: ingredient.ingredient_name,
-          base_unit: ingredient.base_unit
+          unit_of_measure: ingredient.unit_of_measure
         };
       }
       requirements[ingredientId].total_needed += dishIngredient.quantity;
@@ -194,7 +194,7 @@ const addIngredientById = (ingredientId: string) => {
       ingredient_id: ingredient.ingredient_id,
       ingredient_name: ingredient.ingredient_name,
       quantity: 1,
-      unit: ingredient.base_unit,
+      unit: ingredient.unit_of_measure || 'unit',
       is_optional: false,
       preparation_note: '',
     });
@@ -266,12 +266,26 @@ const handleImageError = (message: string) => {
 };
 
 const submit = () => {
+  console.log('Form submission started with data:', form.data());
+  console.log('Form errors before submission:', form.errors);
+
   form.post('/menu', {
-    onSuccess: () => {
+    onSuccess: (page) => {
+      console.log('Form submission successful:', page);
       // Handled by redirect
     },
-    onError: () => {
-      // Form errors will be displayed
+    onError: (errors) => {
+      console.log('Form submission failed with errors:', errors);
+      console.log('Form errors after submission:', form.errors);
+    },
+    onProgress: (progress) => {
+      console.log('Upload progress:', progress);
+    },
+    onStart: () => {
+      console.log('Form submission started');
+    },
+    onFinish: () => {
+      console.log('Form submission finished');
     }
   });
 };
@@ -286,6 +300,16 @@ const submit = () => {
       <div>
         <h1 class="text-3xl font-bold tracking-tight">Create New Dish</h1>
         <p class="text-muted-foreground">Add a new dish to your menu</p>
+      </div>
+
+      <!-- Debug Error Display -->
+      <div v-if="Object.keys(form.errors).length > 0" class="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+        <h3 class="text-red-800 font-medium mb-2">Form Errors:</h3>
+        <ul class="text-red-700 text-sm space-y-1">
+          <li v-for="(error, field) in form.errors" :key="field">
+            <strong>{{ field }}:</strong> {{ error }}
+          </li>
+        </ul>
       </div>
 
       <form @submit.prevent="submit" class="space-y-8">
@@ -320,7 +344,7 @@ const submit = () => {
                     <SelectItem
                       v-for="category in (categories || []).filter(c => c.category_id && c.category_id > 0)"
                       :key="category.category_id"
-                      :value="category.category_id.toString()"
+                      :value="category.category_id"
                     >
                       {{ category.category_name }}
                     </SelectItem>
@@ -437,6 +461,9 @@ const submit = () => {
 
               <div v-if="!form.ingredients || form.ingredients.length === 0" class="text-sm text-muted-foreground text-center py-8">
                 No ingredients selected yet
+                <p v-if="form.errors.ingredients" class="text-sm text-red-500 mt-2">
+                  {{ form.errors.ingredients }}
+                </p>
               </div>
               <div v-else class="space-y-3">
                 <Table>
@@ -538,7 +565,11 @@ const submit = () => {
               step="0.01"
               placeholder="0.00"
               class="w-48"
+              :class="{ 'border-red-500': form.errors.price }"
             />
+            <p v-if="form.errors.price" class="text-sm text-red-500">
+              {{ form.errors.price }}
+            </p>
           </div>
 
           <Button type="submit" size="lg" :disabled="form.processing">

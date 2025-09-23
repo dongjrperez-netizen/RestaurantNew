@@ -15,7 +15,7 @@ class MenuPlanController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
@@ -35,7 +35,7 @@ class MenuPlanController extends Controller
     public function create()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
@@ -60,7 +60,7 @@ class MenuPlanController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');
@@ -112,7 +112,7 @@ class MenuPlanController extends Controller
     public function show($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $menuPlan = MenuPlan::with(['dishes', 'menuPlanDishes.dish'])
             ->forRestaurant($restaurantId)
@@ -126,7 +126,7 @@ class MenuPlanController extends Controller
     public function edit($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $menuPlan = MenuPlan::with(['menuPlanDishes.dish'])
             ->forRestaurant($restaurantId)
@@ -149,7 +149,7 @@ class MenuPlanController extends Controller
             \Log::info('MenuPlan update started', ['id' => $id, 'data' => $request->all()]);
 
             $user = Auth::user();
-            $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+            $restaurantId = $user->restaurantData->id ?? null;
 
             $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
 
@@ -214,7 +214,7 @@ class MenuPlanController extends Controller
     public function destroy($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
         $menuPlan->delete();
@@ -226,7 +226,7 @@ class MenuPlanController extends Controller
     public function getActiveMenuPlan(Request $request)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $date = $request->get('date', now()->format('Y-m-d'));
         $mealType = $request->get('meal_type');
@@ -259,7 +259,7 @@ class MenuPlanController extends Controller
     public function toggleActive($id)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $menuPlan = MenuPlan::forRestaurant($restaurantId)->findOrFail($id);
         $menuPlan->update(['is_active' => ! $menuPlan->is_active]);
@@ -273,7 +273,7 @@ class MenuPlanController extends Controller
     public function mobileView($id, $date)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         if (! $restaurantId) {
             return redirect()->route('dashboard')->with('error', 'No restaurant data found.');

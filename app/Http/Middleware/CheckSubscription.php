@@ -19,6 +19,12 @@ class CheckSubscription
     {
         $user = auth()->user();
 
+        \Log::info('CheckSubscription middleware triggered', [
+            'user_id' => $user?->id,
+            'route' => $request->route()?->getName(),
+            'url' => $request->url()
+        ]);
+
         if ($user) {
             $activeSubscription = Usersubscription::where('user_id', $user->id)
                 ->where('subscription_status', 'active')
@@ -27,6 +33,13 @@ class CheckSubscription
             if ($activeSubscription) {
                 $now = Carbon::now();
                 $endDate = Carbon::parse($activeSubscription->subscription_endDate);
+
+                \Log::info('Active subscription found', [
+                    'subscription_id' => $activeSubscription->id,
+                    'end_date' => $endDate,
+                    'now' => $now,
+                    'is_expired' => $now->greaterThan($endDate)
+                ]);
 
                 // Check if subscription has expired
                 if ($now->greaterThan($endDate)) {
@@ -49,6 +62,8 @@ class CheckSubscription
                         ->withErrors(['error' => 'Your subscription has expired. Please renew your subscription to continue.']);
                 }
             } else {
+                \Log::warning('No active subscription found for user', ['user_id' => $user->id]);
+
                 // Check if this is an API request
                 if ($request->expectsJson() || $request->is('api/*')) {
                     return response()->json([

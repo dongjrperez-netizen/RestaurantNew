@@ -12,7 +12,7 @@ class MenuCategoryController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $categories = MenuCategory::byRestaurant($restaurantId)
             ->withCount('dishes')
@@ -28,7 +28,7 @@ class MenuCategoryController extends Controller
     public function store(Request $request)
     {
         $user = Auth::user();
-        $restaurantId = $user->restaurant_id ?? ($user->restaurantData->id ?? null);
+        $restaurantId = $user->restaurantData->id ?? null;
 
         $request->validate([
             'category_name' => 'required|string|max:255',

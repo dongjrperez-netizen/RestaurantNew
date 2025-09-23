@@ -66,10 +66,6 @@ Route::prefix('employee')->name('employee.')->group(function () {
 
 // Employee-accessible routes (authenticated with employee guard)
 Route::middleware('auth:employee')->group(function () {
-    // Mobile view for waiters - accessible by employee guard
-    Route::get('/menu-planning/{menuPlan}/mobile-view/{date}', [MenuPlanController::class, 'mobileView'])
-        ->name('menu-planning.mobile-view');
-
     // Menu planning index - accessible by employees
     Route::get('/menu-planning', [MenuPlanController::class, 'index'])->name('menu-planning.index.employee');
 });
@@ -436,7 +432,10 @@ Route::middleware(['auth', 'verified', 'check.subscription'])->group(function ()
     Route::delete('/menu-planning/{menuPlan}', [MenuPlanController::class, 'destroy'])->name('menu-planning.destroy');
     Route::post('/menu-planning/{menuPlan}/toggle-active', [MenuPlanController::class, 'toggleActive'])->name('menu-planning.toggle-active');
     Route::get('/api/menu-planning/active', [MenuPlanController::class, 'getActiveMenuPlan'])->name('menu-planning.active');
-    // Note: mobile-view route moved to employee-accessible routes section above
+
+    // Mobile view - accessible by regular authenticated users
+    Route::get('/menu-planning/{menuPlan}/mobile-view/{date}', [MenuPlanController::class, 'mobileView'])
+        ->name('menu-planning.mobile-view');
 });
 
 // Customer Menu Routes (public access)
