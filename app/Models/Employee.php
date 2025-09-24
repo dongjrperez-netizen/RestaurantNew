@@ -40,7 +40,6 @@ class Employee extends Authenticatable
         return [
             'date_of_birth' => 'date',
             'password' => 'hashed',
-            'role_id' => UserRole::class,
         ];
     }
 

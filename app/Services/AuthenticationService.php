@@ -96,35 +96,33 @@ class AuthenticationService
             'role_id_raw' => $employee->getAttribute('role_id'), // Get raw value
         ]);
 
-        // Get the role - it's already cast as UserRole enum in the model
-        $role = $employee->role_id;
+        // Load the role relationship
+        $employee->load('role');
+        $role = $employee->role;
 
         // DEBUG: Log role information
         \Log::info('🔍 EMPLOYEE ROLE INFO', [
-            'role_type' => get_class($role),
-            'role_value' => $role->value,
-            'role_label' => $role->label(),
-            'is_user_role' => $role instanceof UserRole,
-            'is_waiter' => $role->isWaiter(),
+            'role_exists' => $role ? 'Yes' : 'No',
+            'role_name' => $role->role_name ?? null,
+            'role_id' => $role->id ?? null,
         ]);
 
-        if (!$role instanceof UserRole) {
-            \Log::warning('🔍 ROLE NOT INSTANCE OF UserRole - DEFAULT REDIRECT');
+        if (!$role) {
+            \Log::warning('🔍 NO ROLE FOUND - DEFAULT REDIRECT');
             return redirect()->route('dashboard');
         }
 
-        // Special handling for waiters - check for active menu plan
-        if ($role->isWaiter()) {
+        // Special handling for waiters
+        if (strtolower($role->role_name) === 'waiter') {
             \Log::info('🔍 WAITER DETECTED - CALLING WAITER REDIRECT');
             return $this->handleWaiterRedirect($employee);
         }
 
-        // For managers, supervisors, restaurant owners
-        $redirectRoute = $role->redirectRoute();
+        // For other roles, redirect to dashboard
         \Log::info('🔍 NON-WAITER REDIRECT', [
-            'redirect_route' => $redirectRoute
+            'role_name' => $role->role_name
         ]);
-        return redirect()->route($redirectRoute);
+        return redirect()->route('dashboard');
     }
 
     /**
@@ -134,51 +132,9 @@ class AuthenticationService
     {
         \Log::info('🔍 WAITER REDIRECT START');
 
-        $restaurant = $employee->restaurant;
-
-        if (!$restaurant) {
-            \Log::warning('🔍 NO RESTAURANT FOUND - DEFAULT REDIRECT');
-            return redirect()->route('dashboard');
-        }
-
-        \Log::info('🔍 RESTAURANT FOUND', [
-            'restaurant_id' => $restaurant->id,
-            'restaurant_email' => $restaurant->email
-        ]);
-
-        $todayMenuPlan = $restaurant->menuPlans()
-            ->where('is_active', true)
-            ->whereDate('start_date', '<=', now())
-            ->whereDate('end_date', '>=', now())
-            ->first();
-
-        \Log::info('🔍 MENU PLAN SEARCH', [
-            'menu_plan_found' => $todayMenuPlan ? 'Yes' : 'No',
-            'menu_plan_id' => $todayMenuPlan->menu_plan_id ?? null,
-            'today_date' => now()->format('Y-m-d')
-        ]);
-
-        if ($todayMenuPlan) {
-            $redirectUrl = route('menu-planning.mobile-view', [
-                'menuPlan' => $todayMenuPlan->menu_plan_id,
-                'date' => now()->format('Y-m-d')
-            ]);
-
-            \Log::info('🔍 WAITER REDIRECT TO MOBILE VIEW', [
-                'redirect_url' => $redirectUrl,
-                'menu_plan_id' => $todayMenuPlan->menu_plan_id
-            ]);
-
-            return redirect()->route('menu-planning.mobile-view', [
-                'menuPlan' => $todayMenuPlan->menu_plan_id,
-                'date' => now()->format('Y-m-d'),
-                'test' => 'redirect'  // Add test parameter for verification
-            ]);
-        }
-
-        \Log::info('🔍 NO ACTIVE MENU PLAN - REDIRECT TO INDEX');
-        return redirect()->route('menu-planning.index.employee')
-            ->with('warning', 'No active menu plan found for today.');
+        // Direct redirect to waiter dashboard
+        \Log::info('🔍 WAITER REDIRECT TO DASHBOARD');
+        return redirect()->route('waiter.dashboard');
     }
 
     /**

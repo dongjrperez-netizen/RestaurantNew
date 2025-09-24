@@ -36,37 +36,33 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        \Log::info('LOGIN ATTEMPT', ['email' => $request->email]);
+        \Log::info('🔍 UNIFIED LOGIN ATTEMPT', ['email' => $request->email]);
 
-        // Check if employee exists
-        $employee = \App\Models\Employee::where('email', $request->email)->first();
-        \Log::info('EMPLOYEE CHECK', ['found' => $employee ? 'yes' : 'no']);
+        // Use the unified authentication service
+        $result = $this->authService->attemptUnifiedLogin(
+            $request->email,
+            $request->password,
+            $request->boolean('remember')
+        );
 
-        $employeeAttempt = Auth::guard('employee')->attempt(['email' => $request->email, 'password' => $request->password], $request->boolean('remember'));
-        \Log::info('EMPLOYEE AUTH ATTEMPT', ['success' => $employeeAttempt ? 'yes' : 'no']);
-
-        if ($employeeAttempt) {
-            $request->session()->regenerate();
-            \Log::info('EMPLOYEE LOGIN SUCCESS');
-            return redirect()->route('dashboard');
-        }
-
-        $user = \App\Models\User::where('email', $request->email)->first();
-        \Log::info('USER CHECK', ['found' => $user ? 'yes' : 'no']);
-
-        $userAttempt = Auth::guard('web')->attempt(['email' => $request->email, 'password' => $request->password], $request->boolean('remember'));
-        \Log::info('USER AUTH ATTEMPT', ['success' => $userAttempt ? 'yes' : 'no']);
-
-        if ($userAttempt) {
-            $request->session()->regenerate();
-            \Log::info('USER LOGIN SUCCESS');
-            return redirect()->route('dashboard');
-        }
-
-        \Log::info('BOTH LOGIN ATTEMPTS FAILED');
-        return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
+        \Log::info('🔍 UNIFIED LOGIN RESULT', [
+            'success' => $result['success'],
+            'user_type' => $result['user_type'] ?? null,
+            'guard' => $result['guard'] ?? null
         ]);
+
+        if (!$result['success']) {
+            return back()->withErrors($result['errors']);
+        }
+
+        // Regenerate session
+        $request->session()->regenerate();
+
+        // Handle role-based redirect
+        return $this->authService->handleUnifiedLoginRedirect(
+            $result['user_type'],
+            $result['model']
+        );
     }
 
     /**

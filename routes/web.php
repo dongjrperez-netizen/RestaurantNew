@@ -74,6 +74,45 @@ Route::middleware('auth:employee')->group(function () {
     Route::get('/menu-planning', [MenuPlanController::class, 'index'])->name('menu-planning.index.employee');
 });
 
+// Waiter-specific routes (restricted to waiters only)
+Route::middleware(['auth:employee', 'role:waiter'])->prefix('waiter')->name('waiter.')->group(function () {
+    Route::get('/dashboard', [App\Http\Controllers\WaiterController::class, 'dashboard'])->name('dashboard');
+    Route::patch('/tables/{table}/status', [App\Http\Controllers\WaiterController::class, 'updateTableStatus'])->name('tables.update-status');
+    Route::get('/take-order', [App\Http\Controllers\WaiterController::class, 'takeOrder'])->name('take-order');
+    Route::get('/orders/create/{tableId}', [App\Http\Controllers\WaiterController::class, 'createOrder'])->name('orders.create');
+    Route::post('/orders', [App\Http\Controllers\WaiterController::class, 'storeOrder'])->name('orders.store');
+
+    // Debug route to check recent orders
+    Route::get('/debug/orders', function () {
+        $orders = \App\Models\CustomerOrder::with(['table', 'employee', 'customerOrderItems.dish'])
+            ->latest('ordered_at')
+            ->take(5)
+            ->get();
+
+        return response()->json([
+            'recent_orders' => $orders->map(function ($order) {
+                return [
+                    'order_id' => $order->order_id,
+                    'table' => $order->table->table_name ?? 'N/A',
+                    'customer_name' => $order->customer_name,
+                    'waiter' => $order->employee ? $order->employee->firstname . ' ' . $order->employee->lastname : 'N/A',
+                    'status' => $order->status,
+                    'ordered_at' => $order->ordered_at->format('Y-m-d H:i:s'),
+                    'total_items' => $order->customerOrderItems->count(),
+                    'items' => $order->customerOrderItems->map(function ($item) {
+                        return [
+                            'dish' => $item->dish->dish_name ?? 'N/A',
+                            'quantity' => $item->quantity,
+                            'unit_price' => $item->unit_price,
+                            'special_instructions' => $item->special_instructions ?? 'None'
+                        ];
+                    })
+                ];
+            })
+        ]);
+    })->name('debug.orders');
+});
+
 
 Route::middleware('admin.auth')->group(function () {
     // Admin Dashboard

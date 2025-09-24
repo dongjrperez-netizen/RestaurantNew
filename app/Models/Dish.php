@@ -25,7 +25,6 @@ class Dish extends Model
         'preparation_time',
         'serving_size',
         'serving_unit',
-        'image_url',
         'calories',
         'allergens',
         'dietary_tags',

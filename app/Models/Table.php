@@ -61,6 +61,16 @@ class Table extends Model
         return $this->hasMany(TableReservation::class)->today();
     }
 
+    public function customerOrders(): HasMany
+    {
+        return $this->hasMany(CustomerOrder::class);
+    }
+
+    public function activeOrders(): HasMany
+    {
+        return $this->hasMany(CustomerOrder::class)->whereIn('status', ['pending', 'in_progress', 'ready']);
+    }
+
     // Helper methods
     public function getCurrentReservation()
     {
