@@ -107,7 +107,7 @@ const statusFilters = [
   <WaiterLayout :employee="employee">
     <template #title>Take Order</template>
 
-    <div class="absolute top-16 left-0 right-0 bottom-0 p-4 space-y-6">
+    <div class="p-4 space-y-6">
       <!-- Header Section -->
       <Card>
         <CardHeader>
@@ -148,7 +148,7 @@ const statusFilters = [
       </Card>
 
       <!-- Tables Grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto max-h-[calc(100vh-320px)]">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <Card
           v-for="table in filteredTables"
           :key="table.id"

@@ -1,26 +1,7 @@
 <script setup lang="ts">
-import { ref } from 'vue';
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import WaiterLayout from '@/layouts/WaiterLayout.vue';
 import Button from '@/components/ui/button/Button.vue';
-import Badge from '@/components/ui/badge/Badge.vue';
-import Card from '@/components/ui/card/Card.vue';
-import CardContent from '@/components/ui/card/CardContent.vue';
-import CardDescription from '@/components/ui/card/CardDescription.vue';
-import CardHeader from '@/components/ui/card/CardHeader.vue';
-import CardTitle from '@/components/ui/card/CardTitle.vue';
-import Select from '@/components/ui/select/Select.vue';
-import SelectContent from '@/components/ui/select/SelectContent.vue';
-import SelectItem from '@/components/ui/select/SelectItem.vue';
-import SelectTrigger from '@/components/ui/select/SelectTrigger.vue';
-import SelectValue from '@/components/ui/select/SelectValue.vue';
-import TableComponent from '@/components/ui/table/Table.vue';
-import TableBody from '@/components/ui/table/TableBody.vue';
-import TableCell from '@/components/ui/table/TableCell.vue';
-import TableHead from '@/components/ui/table/TableHead.vue';
-import TableHeader from '@/components/ui/table/TableHeader.vue';
-import TableRow from '@/components/ui/table/TableRow.vue';
-import { Users, Clock, AlertTriangle } from 'lucide-vue-next';
 
 interface Table {
   id: number;
@@ -43,24 +24,50 @@ interface Employee {
   };
 }
 
+interface MenuCategory {
+  category_name: string;
+}
+
+interface Dish {
+  dish_id: number;
+  dish_name: string;
+  description?: string;
+  price: number;
+  is_available: boolean;
+  status: 'active' | 'inactive';
+  category?: MenuCategory;
+}
+
+interface MenuPlan {
+  menu_plan_id: number;
+  plan_name: string;
+  plan_type: string;
+  start_date: string;
+  end_date: string;
+  description?: string;
+  is_active: boolean;
+}
+
 interface Props {
   tables: Table[];
   employee: Employee;
+  activeMenuPlan?: MenuPlan | null;
+  dishes: { [categoryName: string]: Dish[] };
 }
 
 defineProps<Props>();
 
-const statusUpdateForm = useForm({
+const updateTableStatusForm = useForm({
   status: ''
 });
 
-const updateTableStatus = (tableId: number, newStatus: string) => {
-  statusUpdateForm.status = newStatus;
-  statusUpdateForm.patch(route('waiter.tables.update-status', tableId), {
+const updateTableStatus = (table: Table, newStatus: string) => {
+  updateTableStatusForm.status = newStatus;
+  updateTableStatusForm.patch(route('waiter.tables.update-status', { table: table.id }), {
     preserveScroll: true,
     onSuccess: () => {
-      statusUpdateForm.reset();
-    }
+      // Success message is handled by the backend flash message
+    },
   });
 };
 
@@ -78,28 +85,6 @@ const getStatusColor = (status: string) => {
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
 };
-
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case 'available':
-      return 'text-green-600';
-    case 'occupied':
-      return 'text-red-600';
-    case 'reserved':
-      return 'text-yellow-600';
-    case 'maintenance':
-      return 'text-gray-600';
-    default:
-      return 'text-gray-600';
-  }
-};
-
-const statusOptions = [
-  { value: 'available', label: 'Available' },
-  { value: 'occupied', label: 'Occupied' },
-  { value: 'reserved', label: 'Reserved' },
-  { value: 'maintenance', label: 'Maintenance' },
-];
 </script>
 
 <template>
@@ -108,70 +93,70 @@ const statusOptions = [
   <WaiterLayout :employee="employee">
     <template #title>Tables Overview</template>
 
-    <div style="position: absolute; top: 60px; left: 0; right: 0; padding: 0 24px;">
+    <div class="p-4 sm:p-6">
       <!-- Stats Cards -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle class="text-sm font-medium">Available Tables</CardTitle>
+        <div class="bg-white rounded-lg shadow p-4 border">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-600">Available Tables</p>
+              <p class="text-2xl font-bold text-green-600">
+                {{ tables.filter(t => t.status === 'available').length }}
+              </p>
+            </div>
             <div class="h-3 w-3 bg-green-500 rounded-full"></div>
-          </CardHeader>
-          <CardContent class="pt-1">
-            <div class="text-2xl font-bold">
-              {{ tables.filter(t => t.status === 'available').length }}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle class="text-sm font-medium">Occupied Tables</CardTitle>
+        <div class="bg-white rounded-lg shadow p-4 border">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-600">Occupied Tables</p>
+              <p class="text-2xl font-bold text-red-600">
+                {{ tables.filter(t => t.status === 'occupied').length }}
+              </p>
+            </div>
             <div class="h-3 w-3 bg-red-500 rounded-full"></div>
-          </CardHeader>
-          <CardContent class="pt-1">
-            <div class="text-2xl font-bold">
-              {{ tables.filter(t => t.status === 'occupied').length }}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle class="text-sm font-medium">Reserved Tables</CardTitle>
+        <div class="bg-white rounded-lg shadow p-4 border">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-600">Reserved Tables</p>
+              <p class="text-2xl font-bold text-yellow-600">
+                {{ tables.filter(t => t.status === 'reserved').length }}
+              </p>
+            </div>
             <div class="h-3 w-3 bg-yellow-500 rounded-full"></div>
-          </CardHeader>
-          <CardContent class="pt-1">
-            <div class="text-2xl font-bold">
-              {{ tables.filter(t => t.status === 'reserved').length }}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-1">
-            <CardTitle class="text-sm font-medium">Total Tables</CardTitle>
-            <Users class="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent class="pt-1">
-            <div class="text-2xl font-bold">{{ tables.length }}</div>
-          </CardContent>
-        </Card>
+        <div class="bg-white rounded-lg shadow p-4 border">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-medium text-gray-600">Total Tables</p>
+              <p class="text-2xl font-bold text-gray-900">{{ tables.length }}</p>
+            </div>
+            <svg class="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+        </div>
       </div>
 
-      <!-- Tables Grid View -->
-      <Card>
-        <CardHeader>
-          <CardTitle>Restaurant Tables</CardTitle>
-          <CardDescription>
-            Manage table statuses and track occupancy
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <!-- Tables Overview -->
+      <div class="bg-white rounded-lg shadow border mb-6">
+        <div class="px-6 py-4 border-b">
+          <h2 class="text-lg font-semibold text-gray-900">Restaurant Tables</h2>
+          <p class="text-sm text-gray-600">Manage table statuses and track occupancy</p>
+        </div>
+        <div class="p-6">
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div
+            <div
               v-for="table in tables"
               :key="table.id"
-              class="border rounded-lg p-3 sm:p-4 space-y-3"
+              class="border rounded-lg p-4 space-y-3"
               :class="[
                 table.status === 'available' ? 'border-green-200 bg-green-50' :
                 table.status === 'occupied' ? 'border-red-200 bg-red-50' :
@@ -179,127 +164,160 @@ const statusOptions = [
                 'border-gray-200 bg-gray-50'
               ]"
             >
-              <!-- Table Header -->
               <div class="flex items-start justify-between">
                 <div class="flex-1 min-w-0">
-                  <h3 class="font-semibold text-base sm:text-lg truncate">{{ table.table_name }}</h3>
-                  <p class="text-xs sm:text-sm text-muted-foreground">Table #{{ table.table_number }}</p>
+                  <h3 class="font-semibold text-lg truncate">{{ table.table_name }}</h3>
+                  <p class="text-sm text-gray-600">Table #{{ table.table_number }}</p>
                 </div>
-                <Badge :class="getStatusColor(table.status)" class="capitalize text-xs ml-2">
-                  {{ table.status }}
-                </Badge>
-              </div>
-
-              <!-- Table Info -->
-              <div class="space-y-2">
-                <div class="flex items-center gap-2 text-sm">
-                  <Users :class="getStatusIcon(table.status)" class="h-4 w-4 flex-shrink-0" />
-                  <span>{{ table.seats }} seats</span>
-                </div>
-                <div v-if="table.description" class="text-xs sm:text-sm text-muted-foreground">
-                  {{ table.description }}
-                </div>
-              </div>
-
-              <!-- Status Update -->
-              <div class="pt-2 border-t">
-                <Select
-                  :model-value="table.status"
-                  @update:model-value="(value) => updateTableStatus(table.id, value)"
+                <span
+                  class="px-2 py-1 text-xs font-medium rounded-full capitalize"
+                  :class="getStatusColor(table.status)"
                 >
-                  <SelectTrigger class="w-full h-9 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem
-                      v-for="option in statusOptions"
-                      :key="option.value"
-                      :value="option.value"
-                      class="text-sm"
-                    >
-                      {{ option.label }}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                  {{ table.status }}
+                </span>
+              </div>
+
+              <div class="flex items-center gap-2 text-sm">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span>{{ table.seats }} seats</span>
+              </div>
+
+              <div v-if="table.description" class="text-sm text-gray-600">
+                {{ table.description }}
+              </div>
+
+              <!-- Table Status Actions -->
+              <div class="pt-3 border-t space-y-2">
+                <p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Quick Actions</p>
+                <div class="flex flex-wrap gap-1">
+                  <!-- Available Button -->
+                  <Button
+                    v-if="table.status !== 'available'"
+                    @click="updateTableStatus(table, 'available')"
+                    :disabled="updateTableStatusForm.processing"
+                    size="sm"
+                    variant="outline"
+                    class="text-xs px-2 py-1 h-auto bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                  >
+                    Available
+                  </Button>
+
+                  <!-- Occupied Button -->
+                  <Button
+                    v-if="table.status !== 'occupied'"
+                    @click="updateTableStatus(table, 'occupied')"
+                    :disabled="updateTableStatusForm.processing"
+                    size="sm"
+                    variant="outline"
+                    class="text-xs px-2 py-1 h-auto bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+                  >
+                    Occupied
+                  </Button>
+
+                  <!-- Reserved Button -->
+                  <Button
+                    v-if="table.status !== 'reserved'"
+                    @click="updateTableStatus(table, 'reserved')"
+                    :disabled="updateTableStatusForm.processing"
+                    size="sm"
+                    variant="outline"
+                    class="text-xs px-2 py-1 h-auto bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border-yellow-200"
+                  >
+                    Reserved
+                  </Button>
+
+                  <!-- Maintenance Button -->
+                  <Button
+                    v-if="table.status !== 'maintenance'"
+                    @click="updateTableStatus(table, 'maintenance')"
+                    :disabled="updateTableStatusForm.processing"
+                    size="sm"
+                    variant="outline"
+                    class="text-xs px-2 py-1 h-auto bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                  >
+                    Maintenance
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Menu Section -->
+      <div class="bg-white rounded-lg shadow border">
+        <div class="px-6 py-4 border-b">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">Current Menu</h2>
+              <p v-if="activeMenuPlan" class="text-sm text-gray-600">
+                Active Menu Plan: {{ activeMenuPlan.plan_name }}
+                ({{ new Date(activeMenuPlan.start_date).toLocaleDateString() }} - {{ new Date(activeMenuPlan.end_date).toLocaleDateString() }})
+              </p>
+              <p v-else class="text-sm text-gray-600">
+                No active menu plan - showing all available dishes
+              </p>
+            </div>
+            <Link
+              :href="route('waiter.take-order')"
+              class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150"
+            >
+              Take Order
+            </Link>
+          </div>
+        </div>
+        <div class="p-6">
+          <!-- Menu Categories -->
+          <div v-if="Object.keys(dishes).length > 0" class="space-y-6">
+            <div v-for="(categoryDishes, categoryName) in dishes" :key="categoryName" class="space-y-3">
+              <h3 class="text-lg font-semibold text-gray-900 border-b pb-2">
+                {{ categoryName || 'Uncategorized' }}
+              </h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div
+                  v-for="dish in categoryDishes"
+                  :key="dish.dish_id"
+                  class="border rounded-lg p-4 space-y-2 hover:shadow-md transition-shadow"
+                  :class="dish.is_available ? 'border-gray-200 bg-white' : 'border-gray-300 bg-gray-50 opacity-60'"
+                >
+                  <div class="flex justify-between items-start">
+                    <h4 class="font-semibold text-base" :class="dish.is_available ? 'text-gray-900' : 'text-gray-500'">
+                      {{ dish.dish_name }}
+                    </h4>
+                    <div class="flex flex-col items-end space-y-1">
+                      <span class="font-bold text-lg text-green-600">
+                        ₱{{ Number(dish.price).toFixed(2) }}
+                      </span>
+                      <span
+                        class="px-2 py-1 text-xs font-medium rounded-full"
+                        :class="dish.is_available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                      >
+                        {{ dish.is_available ? 'Available' : 'Unavailable' }}
+                      </span>
+                    </div>
+                  </div>
+                  <p v-if="dish.description" class="text-sm text-gray-600">
+                    {{ dish.description }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Empty State -->
-          <div v-if="tables.length === 0" class="text-center py-12">
-            <AlertTriangle class="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 class="text-lg font-semibold text-muted-foreground mb-2">No Tables Found</h3>
-            <p class="text-muted-foreground">
-              There are no tables configured for this restaurant yet.
+          <div v-else class="text-center py-12">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <h3 class="mt-2 text-sm font-medium text-gray-900">No Menu Available</h3>
+            <p class="mt-1 text-sm text-gray-500">
+              There are no dishes available in the current menu plan.
             </p>
           </div>
-        </CardContent>
-      </Card>
-
-      <!-- Table List View - Hidden on Mobile, Shown on Larger Screens -->
-      <Card class="hidden lg:block">
-        <CardHeader>
-          <CardTitle>Table Details</CardTitle>
-          <CardDescription>
-            Complete table information and quick actions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <TableComponent>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Table</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Seats</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-for="table in tables" :key="table.id">
-                <TableCell class="font-medium">#{{ table.table_number }}</TableCell>
-                <TableCell>{{ table.table_name }}</TableCell>
-                <TableCell>
-                  <div class="flex items-center gap-1">
-                    <Users class="h-4 w-4" />
-                    {{ table.seats }}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge :class="getStatusColor(table.status)" class="capitalize">
-                    {{ table.status }}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <span class="text-sm text-muted-foreground">
-                    {{ table.description || 'No description' }}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  <Select
-                    :model-value="table.status"
-                    @update:model-value="(value) => updateTableStatus(table.id, value)"
-                  >
-                    <SelectTrigger class="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="option in statusOptions"
-                        :key="option.value"
-                        :value="option.value"
-                      >
-                        {{ option.label }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </TableComponent>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   </WaiterLayout>
 </template>

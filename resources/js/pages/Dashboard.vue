@@ -212,49 +212,49 @@ const chartData = ref([
     day: 'Mon',
     revenue: 1250,
     orders: 35,
-    'Revenue ($)': 1250,
+    'Revenue (₱)': 1250,
     'Orders': 35
   },
   {
     day: 'Tue',
     revenue: 1100,
     orders: 28,
-    'Revenue ($)': 1100,
+    'Revenue (₱)': 1100,
     'Orders': 28
   },
   {
     day: 'Wed',
     revenue: 1450,
     orders: 42,
-    'Revenue ($)': 1450,
+    'Revenue (₱)': 1450,
     'Orders': 42
   },
   {
     day: 'Thu',
     revenue: 1320,
     orders: 38,
-    'Revenue ($)': 1320,
+    'Revenue (₱)': 1320,
     'Orders': 38
   },
   {
     day: 'Fri',
     revenue: 1680,
     orders: 52,
-    'Revenue ($)': 1680,
+    'Revenue (₱)': 1680,
     'Orders': 52
   },
   {
     day: 'Sat',
     revenue: 2150,
     orders: 68,
-    'Revenue ($)': 2150,
+    'Revenue (₱)': 2150,
     'Orders': 68
   },
   {
     day: 'Sun',
     revenue: 1890,
     orders: 59,
-    'Revenue ($)': 1890,
+    'Revenue (₱)': 1890,
     'Orders': 59
   }
 ]);
@@ -453,7 +453,7 @@ setInterval(() => {
                         <BarChart
                             :data="chartData"
                             index="day"
-                            :categories="['Revenue ($)', 'Orders']"
+                            :categories="['Revenue (₱)', 'Orders']"
                             :colors="['rgb(59, 130, 246)', 'rgb(16, 185, 129)']"
                             type="grouped"
                             :rounded-corners="4"

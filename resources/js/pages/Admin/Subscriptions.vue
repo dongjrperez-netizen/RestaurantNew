@@ -453,7 +453,7 @@ const editSubscription = (subscription: Subscription) => {
                   </TableCell>
                   <TableCell>
                     <span v-if="history.amount">
-                      ${{ history.amount.toFixed(2) }}
+                      ₱{{ history.amount.toFixed(2) }}
                     </span>
                     <span v-else class="text-muted-foreground">-</span>
                   </TableCell>
